@@ -1,0 +1,30 @@
+{
+  "project_info": {
+    "project_number": "717947169542",
+    "firebase_url": "https://sandra-c4bd7-default-rtdb.europe-west1.firebasedatabase.app",
+    "project_id": "sandra-c4bd7",
+    "storage_bucket": "sandra-c4bd7.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:717947169542:android:cca6bd486cc7dba7bb8c87",
+        "android_client_info": {
+          "package_name": "com.example.ecosytem"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCtFXOmgj5d17ys9GwQ4ubvI_BnaxFjXG8"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
