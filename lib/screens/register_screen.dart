@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'auth_gate.dart';
+import 'ui_helpers.dart';
 
 class RegisterScreen extends StatefulWidget {
   const RegisterScreen({super.key});
@@ -13,6 +14,7 @@ class RegisterScreen extends StatefulWidget {
 class _RegisterScreenState extends State<RegisterScreen> {
   final nameController = TextEditingController();
   final phoneController = TextEditingController();
+  final emailController = TextEditingController();
   final passwordController = TextEditingController();
   final confirmPasswordController = TextEditingController();
 
@@ -23,10 +25,18 @@ class _RegisterScreenState extends State<RegisterScreen> {
   Future<void> registerUser() async {
     if (nameController.text.trim().isEmpty ||
         phoneController.text.trim().isEmpty ||
+        emailController.text.trim().isEmpty ||
         passwordController.text.isEmpty ||
         confirmPasswordController.text.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please fill in all fields')),
+      );
+      return;
+    }
+
+    if (!emailController.text.contains('@')) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Please enter a valid email address')),
       );
       return;
     }
@@ -45,25 +55,26 @@ class _RegisterScreenState extends State<RegisterScreen> {
       return;
     }
 
-    setState(() {
-      isLoading = true;
-    });
+    setState(() => isLoading = true);
 
     try {
+      final email = emailController.text.trim();
+
       await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: '${phoneController.text.trim()}@ecosytem.app',
+        email: email,
         password: passwordController.text,
       );
 
       final user = FirebaseAuth.instance.currentUser;
 
       if (user != null) {
-        await FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .set({
+        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
           'name': nameController.text.trim(),
           'phone': phoneController.text.trim(),
+          'email': email,
+          'nickname': nameController.text.trim(),
+          'avatarIcon': '🙂',
+          'role': 'user',
           'points': 0,
           'bottles': 0,
           'weight': 0.0,
@@ -77,7 +88,6 @@ class _RegisterScreenState extends State<RegisterScreen> {
         const SnackBar(content: Text('Account created successfully!')),
       );
 
-      // User is already signed in at this point — go straight in.
       Navigator.pushAndRemoveUntil(
         context,
         MaterialPageRoute(builder: (context) => const AuthGate()),
@@ -85,34 +95,22 @@ class _RegisterScreenState extends State<RegisterScreen> {
       );
     } on FirebaseAuthException catch (e) {
       String message = 'Registration failed';
-
       if (e.code == 'email-already-in-use') {
-        message = 'This phone number is already registered';
+        message = 'This email is already registered';
       } else if (e.code == 'weak-password') {
         message = 'The password is too weak';
       } else if (e.code == 'invalid-email') {
-        message = 'Invalid phone number';
+        message = 'Invalid email address';
       } else {
         message = 'Firebase error: ${e.code}';
       }
-
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(message)),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) return;
-
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error: $e')),
-      );
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
     } finally {
-      if (mounted) {
-        setState(() {
-          isLoading = false;
-        });
-      }
+      if (mounted) setState(() => isLoading = false);
     }
   }
 
@@ -120,6 +118,7 @@ class _RegisterScreenState extends State<RegisterScreen> {
   void dispose() {
     nameController.dispose();
     phoneController.dispose();
+    emailController.dispose();
     passwordController.dispose();
     confirmPasswordController.dispose();
     super.dispose();
@@ -128,126 +127,72 @@ class _RegisterScreenState extends State<RegisterScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Create Account'),
-      ),
+      backgroundColor: kBackground,
+      appBar: AppBar(title: const Text('Create Account')),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const SizedBox(height: 20),
-
-            const Text(
-              'Join Ecosystem 🌱',
-              style: TextStyle(
-                fontSize: 28,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-
+            const Text('Join Ecosystem 🌱', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kTextDark)),
             const SizedBox(height: 10),
-
-            const Text(
-              'Create an account and start earning points by recycling.',
-              style: TextStyle(fontSize: 16),
-            ),
-
+            const Text('Create an account and start earning points by recycling.', style: TextStyle(fontSize: 16, color: Colors.grey)),
             const SizedBox(height: 30),
-
-            TextField(
-              controller: nameController,
-              decoration: const InputDecoration(
-                labelText: 'Full Name',
-                prefixIcon: Icon(Icons.person),
-                border: OutlineInputBorder(),
-              ),
-            ),
-
+            TextField(controller: nameController, decoration: kFieldDecoration('Full Name', Icons.person)),
             const SizedBox(height: 18),
-
             TextField(
               controller: phoneController,
               keyboardType: TextInputType.phone,
-              decoration: const InputDecoration(
-                labelText: 'Phone Number',
-                prefixIcon: Icon(Icons.phone),
-                border: OutlineInputBorder(),
-              ),
+              decoration: kFieldDecoration('Phone Number', Icons.phone),
             ),
-
             const SizedBox(height: 18),
-
+            TextField(
+              controller: emailController,
+              keyboardType: TextInputType.emailAddress,
+              decoration: kFieldDecoration('Email Address', Icons.email_outlined),
+            ),
+            const SizedBox(height: 18),
             TextField(
               controller: passwordController,
               obscureText: obscurePassword,
-              decoration: InputDecoration(
-                labelText: 'Password',
-                prefixIcon: const Icon(Icons.lock),
-                border: const OutlineInputBorder(),
+              decoration: kFieldDecoration(
+                'Password',
+                Icons.lock,
                 suffixIcon: IconButton(
-                  icon: Icon(
-                    obscurePassword ? Icons.visibility_off : Icons.visibility,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      obscurePassword = !obscurePassword;
-                    });
-                  },
+                  icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => obscurePassword = !obscurePassword),
                 ),
               ),
             ),
-
             const SizedBox(height: 18),
-
             TextField(
               controller: confirmPasswordController,
               obscureText: obscureConfirmPassword,
-              decoration: InputDecoration(
-                labelText: 'Confirm Password',
-                prefixIcon: const Icon(Icons.lock_outline),
-                border: const OutlineInputBorder(),
+              decoration: kFieldDecoration(
+                'Confirm Password',
+                Icons.lock_outline,
                 suffixIcon: IconButton(
-                  icon: Icon(
-                    obscureConfirmPassword
-                        ? Icons.visibility_off
-                        : Icons.visibility,
-                  ),
-                  onPressed: () {
-                    setState(() {
-                      obscureConfirmPassword = !obscureConfirmPassword;
-                    });
-                  },
+                  icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                  onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
                 ),
               ),
             ),
-
             const SizedBox(height: 30),
-
             SizedBox(
               width: double.infinity,
               height: 55,
               child: ElevatedButton(
                 onPressed: isLoading ? null : registerUser,
                 child: isLoading
-                    ? const CircularProgressIndicator()
-                    : const Text(
-                        'CREATE ACCOUNT',
-                        style: TextStyle(fontSize: 16),
-                      ),
+                    ? const CircularProgressIndicator(color: Colors.white)
+                    : const Text('CREATE ACCOUNT', style: TextStyle(fontSize: 16)),
               ),
             ),
-
             const SizedBox(height: 15),
-
             Center(
               child: TextButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-                child: const Text(
-                  'Already have an account? Login',
-                ),
+                onPressed: () => Navigator.pop(context),
+                child: const Text('Already have an account? Login'),
               ),
             ),
           ],
