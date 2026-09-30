@@ -1,30 +1,37 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-
-import 'package:ecosytem/main.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ecosytem/services/api_service.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const EcosystemApp());
+  TestWidgetsFlutterBinding.ensureInitialized();
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  test('ApiService initializes and supports mock login and kiosk session', () async {
+    SharedPreferences.setMockInitialValues({});
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    final api = ApiService();
+    await api.init();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(api.baseUrl, isNotEmpty);
+
+    // Test authentication
+    final user = await api.login(identifier: '0241234567', password: 'password123');
+    expect(user.phone, '0241234567');
+    expect(api.isAuthenticated, isTrue);
+
+    // Test kiosk tap RFID
+    final session = await api.startKioskSessionByRfid('A3 F1 82 4B');
+    expect(session.userId, isNotNull);
+
+    // Test bottle deposit
+    final updatedSession = await api.recordKioskBottleDeposit(
+      bottleClass: 'Clear PET',
+      weight: 0.025,
+    );
+    expect(updatedSession.sessionBottles, 1);
+    expect(updatedSession.sessionPoints, greaterThan(0));
+
+    // Test finish session
+    final finishedSession = await api.finishKioskSession();
+    expect(finishedSession.sessionBottles, 1);
   });
 }

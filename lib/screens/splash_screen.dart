@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
 import 'auth_gate.dart';
-import 'kiosk_mockup_screen.dart';
+import 'kiosk_screen.dart';
 import 'ui_helpers.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -80,12 +80,28 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     child: Transform.scale(
                       scale: scaleAnimation.value,
                       child: Container(
-                        padding: const EdgeInsets.all(30),
-                        decoration: const BoxDecoration(
+                        width: 130,
+                        height: 130,
+                        decoration: BoxDecoration(
                           color: Colors.white,
                           shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withOpacity(0.15),
+                              blurRadius: 20,
+                              offset: const Offset(0, 8),
+                            ),
+                          ],
                         ),
-                        child: const Icon(Icons.recycling, size: 90, color: kPrimaryDark),
+                        child: ClipOval(
+                          child: Padding(
+                            padding: const EdgeInsets.all(12),
+                            child: Image.asset(
+                              'assets/images/logo_boame.png',
+                              fit: BoxFit.contain,
+                            ),
+                          ),
+                        ),
                       ),
                     ),
                   ),
@@ -95,12 +111,12 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
                     child: const Column(
                       children: [
                         Text(
-                          'ECOSYSTEM',
+                          'BOAME',
                           style: TextStyle(
                             fontSize: 34,
                             fontWeight: FontWeight.bold,
                             color: Colors.white,
-                            letterSpacing: 2,
+                            letterSpacing: 3,
                           ),
                         ),
                         SizedBox(height: 8),
@@ -134,7 +150,7 @@ class ChooseModeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: kBackground,
       appBar: AppBar(
-        title: const Text('ECOSYSTEM', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('BOAME ECOSYSTEM', style: TextStyle(fontWeight: FontWeight.bold)),
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
@@ -142,13 +158,13 @@ class ChooseModeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             const Text(
-              'Welcome to Ecosystem 🌱',
+              'Welcome to BoaMe 🌱',
               style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kTextDark),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 10),
             const Text(
-              'Choose how you want to use Ecosystem.',
+              'Choose how you want to use BoaMe.',
               style: TextStyle(fontSize: 16, color: Colors.grey),
               textAlign: TextAlign.center,
             ),
@@ -176,7 +192,7 @@ class ChooseModeScreen extends StatelessWidget {
                 onPressed: () {
                   Navigator.push(
                     context,
-                    MaterialPageRoute(builder: (context) => const KioskMockupScreen()),
+                    MaterialPageRoute(builder: (context) => const KioskScreen()),
                   );
                 },
                 icon: const Icon(Icons.recycling),

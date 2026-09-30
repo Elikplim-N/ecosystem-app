@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
-
+import '../services/api_service.dart';
 import 'register_screen.dart';
 import 'forgot_password_screen.dart';
 import 'auth_gate.dart';
+import 'kiosk_screen.dart';
 import 'ui_helpers.dart';
 
 class LoginScreen extends StatefulWidget {
@@ -15,16 +14,19 @@ class LoginScreen extends StatefulWidget {
 }
 
 class _LoginScreenState extends State<LoginScreen> {
-  final phoneController = TextEditingController();
+  final identifierController = TextEditingController();
   final passwordController = TextEditingController();
 
   bool isLoading = false;
   bool obscurePassword = true;
 
   Future<void> loginUser() async {
-    if (phoneController.text.trim().isEmpty || passwordController.text.isEmpty) {
+    final identifier = identifierController.text.trim();
+    final password = passwordController.text;
+
+    if (identifier.isEmpty || password.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please enter your phone number and password')),
+        const SnackBar(content: Text('Please enter your phone number or email and password')),
       );
       return;
     }
@@ -32,32 +34,7 @@ class _LoginScreenState extends State<LoginScreen> {
     setState(() => isLoading = true);
 
     try {
-      final phone = phoneController.text.trim();
-
-      // Look up the account by phone to find its real login email.
-      final query = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone', isEqualTo: phone)
-          .limit(1)
-          .get();
-
-      if (query.docs.isEmpty) {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('No account found with that phone number')),
-        );
-        setState(() => isLoading = false);
-        return;
-      }
-
-      final userData = query.docs.first.data();
-      // Fallback for accounts created before real emails were required.
-      final email = userData['email'] ?? '$phone@ecosytem.app';
-
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
-        password: passwordController.text,
-      );
+      await ApiService().login(identifier: identifier, password: password);
 
       if (!mounted) return;
 
@@ -66,30 +43,14 @@ class _LoginScreenState extends State<LoginScreen> {
         MaterialPageRoute(builder: (context) => const AuthGate()),
         (route) => false,
       );
-    } on FirebaseAuthException catch (e) {
-      String message = 'Login failed';
-      if (e.code == 'user-not-found' || e.code == 'invalid-credential') {
-        message = 'Phone number or password is incorrect';
-      } else if (e.code == 'wrong-password') {
-        message = 'Incorrect password';
-      } else {
-        message = 'Firebase error: ${e.code}';
-      }
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text(e.toString().replaceAll('Exception: ', ''))),
+      );
     } finally {
       if (mounted) setState(() => isLoading = false);
     }
-  }
-
-  @override
-  void dispose() {
-    phoneController.dispose();
-    passwordController.dispose();
-    super.dispose();
   }
 
   @override
@@ -98,52 +59,74 @@ class _LoginScreenState extends State<LoginScreen> {
       backgroundColor: kBackground,
       body: SafeArea(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 20),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              const SizedBox(height: 40),
-              Container(
-                padding: const EdgeInsets.all(20),
-                decoration: const BoxDecoration(color: kPrimaryColor, shape: BoxShape.circle),
-                child: const Icon(Icons.recycling, size: 40, color: Colors.white),
+              const SizedBox(height: 20),
+              Center(
+                child: Container(
+                  width: 90,
+                  height: 90,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    shape: BoxShape.circle,
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.08),
+                        blurRadius: 15,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipOval(
+                    child: Padding(
+                      padding: const EdgeInsets.all(8),
+                      child: Image.asset('assets/images/logo_boame.png', fit: BoxFit.contain),
+                    ),
+                  ),
+                ),
               ),
               const SizedBox(height: 24),
-              const Text('Welcome Back 👋', style: TextStyle(fontSize: 30, fontWeight: FontWeight.bold, color: kTextDark)),
-              const SizedBox(height: 10),
-              const Text('Login to continue recycling and earning.', style: TextStyle(fontSize: 16, color: Colors.grey)),
-              const SizedBox(height: 40),
-              TextField(
-                controller: phoneController,
-                keyboardType: TextInputType.phone,
-                decoration: kFieldDecoration('Phone Number', Icons.phone),
+              const Text('Welcome Back 👋', style: TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: kTextDark)),
+              const SizedBox(height: 6),
+              const Text('Log in to view your recycling rewards and balance', style: TextStyle(fontSize: 15, color: Colors.grey)),
+              const SizedBox(height: 32),
+
+              TextFormField(
+                controller: identifierController,
+                keyboardType: TextInputType.text,
+                decoration: kInputDecoration(
+                  label: 'Phone Number or Email',
+                  hint: '024 123 4567 or user@mail.com',
+                  icon: Icons.person_outline,
+                ),
               ),
-              const SizedBox(height: 18),
-              TextField(
+              const SizedBox(height: 16),
+
+              TextFormField(
                 controller: passwordController,
                 obscureText: obscurePassword,
-                decoration: kFieldDecoration(
-                  'Password',
-                  Icons.lock,
+                decoration: kInputDecoration(
+                  label: 'Password',
+                  icon: Icons.lock_outline,
                   suffixIcon: IconButton(
-                    icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
+                    icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility, color: Colors.grey),
                     onPressed: () => setState(() => obscurePassword = !obscurePassword),
                   ),
                 ),
               ),
+              const SizedBox(height: 8),
+
               Align(
                 alignment: Alignment.centerRight,
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(builder: (context) => const ForgotPasswordScreen()),
-                    );
-                  },
-                  child: const Text('Forgot Password?'),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const ForgotPasswordScreen())),
+                  child: const Text('Forgot Password?', style: TextStyle(color: kPrimaryColor, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 12),
+              const SizedBox(height: 20),
+
               SizedBox(
                 width: double.infinity,
                 height: 55,
@@ -151,16 +134,29 @@ class _LoginScreenState extends State<LoginScreen> {
                   onPressed: isLoading ? null : loginUser,
                   child: isLoading
                       ? const CircularProgressIndicator(color: Colors.white)
-                      : const Text('LOGIN', style: TextStyle(fontSize: 17)),
+                      : const Text('LOG IN', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 16),
+
               Center(
                 child: TextButton(
-                  onPressed: () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen()));
-                  },
-                  child: const Text("Don't have an account? Register"),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const RegisterScreen())),
+                  child: const Text("Don't have an account? Sign Up", style: TextStyle(color: kPrimaryDark, fontWeight: FontWeight.bold)),
+                ),
+              ),
+              const SizedBox(height: 30),
+
+              // Quick Launch Kiosk Mode
+              const Divider(color: Colors.black12),
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (context) => const KioskScreen())),
+                icon: const Icon(Icons.point_of_sale),
+                label: const Text('LAUNCH REVERSE VENDING MACHINE (KIOSK MODE)'),
+                style: OutlinedButton.styleFrom(
+                  minimumSize: const Size(double.infinity, 50),
+                  side: const BorderSide(color: Color(0xFF00C896), width: 1.5),
                 ),
               ),
             ],

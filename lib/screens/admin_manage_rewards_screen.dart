@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
+import '../models/reward_model.dart';
 import 'ui_helpers.dart';
 
 class AdminManageRewardsScreen extends StatefulWidget {
@@ -10,6 +11,20 @@ class AdminManageRewardsScreen extends StatefulWidget {
 }
 
 class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
+  late Future<List<RewardModel>> _rewardsFuture;
+
+  @override
+  void initState() {
+    super.initState();
+    _refresh();
+  }
+
+  void _refresh() {
+    setState(() {
+      _rewardsFuture = ApiService().getRewards();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
@@ -21,16 +36,23 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
             icon: const Icon(Icons.add),
             onPressed: () => _showAddRewardDialog(context),
           ),
+          IconButton(
+            icon: const Icon(Icons.refresh),
+            onPressed: _refresh,
+          ),
         ],
       ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance.collection('rewards').orderBy('costPoints').snapshots(),
+      body: FutureBuilder<List<RewardModel>>(
+        future: _rewardsFuture,
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
+          if (snapshot.hasError) {
+            return Center(child: Text('Error: ${snapshot.error}'));
+          }
 
-          final rewards = snapshot.data?.docs ?? [];
+          final rewards = snapshot.data ?? [];
 
           if (rewards.isEmpty) {
             return const Center(child: Text('No rewards yet. Tap + to add one.'));
@@ -40,9 +62,7 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
             padding: const EdgeInsets.all(16),
             itemCount: rewards.length,
             itemBuilder: (context, index) {
-              final doc = rewards[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final active = data['active'] ?? true;
+              final reward = rewards[index];
 
               return Container(
                 margin: const EdgeInsets.only(bottom: 12),
@@ -54,23 +74,31 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(data['title'] ?? '', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
+                          Text(
+                            reward.title,
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                          ),
                           const SizedBox(height: 4),
-                          Text('${data['costPoints'] ?? 0} points • ${data['type'] ?? 'standard'}', style: const TextStyle(fontSize: 12, color: Colors.grey)),
+                          Text(
+                            '${reward.pointsCost} points • ${reward.category}',
+                            style: const TextStyle(fontSize: 12, color: Colors.grey),
+                          ),
                         ],
                       ),
                     ),
                     Switch(
-                      value: active,
+                      value: reward.isActive,
                       activeColor: kPrimaryColor,
-                      onChanged: (value) {
-                        FirebaseFirestore.instance.collection('rewards').doc(doc.id).update({'active': value});
+                      onChanged: (value) async {
+                        await ApiService().adminToggleReward(reward.id, value);
+                        _refresh();
                       },
                     ),
                     IconButton(
                       icon: const Icon(Icons.delete_outline, color: Colors.red),
-                      onPressed: () {
-                        FirebaseFirestore.instance.collection('rewards').doc(doc.id).delete();
+                      onPressed: () async {
+                        await ApiService().adminDeleteReward(reward.id);
+                        _refresh();
                       },
                     ),
                   ],
@@ -88,11 +116,11 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
     final descController = TextEditingController();
     final costController = TextEditingController();
     final partnerController = TextEditingController();
-    String type = 'standard';
+    String category = 'airtime';
 
     showDialog(
       context: context,
-      builder: (context) {
+      builder: (ctx) {
         return StatefulBuilder(
           builder: (context, setDialogState) {
             return AlertDialog(
@@ -102,56 +130,52 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                   mainAxisSize: MainAxisSize.min,
                   children: [
                     TextField(controller: titleController, decoration: const InputDecoration(labelText: 'Title')),
-                    const SizedBox(height: 10),
                     TextField(controller: descController, decoration: const InputDecoration(labelText: 'Description')),
-                    const SizedBox(height: 10),
                     TextField(
                       controller: costController,
                       keyboardType: TextInputType.number,
-                      decoration: const InputDecoration(labelText: 'Cost (points)'),
+                      decoration: const InputDecoration(labelText: 'Points Cost'),
                     ),
-                    const SizedBox(height: 10),
+                    TextField(controller: partnerController, decoration: const InputDecoration(labelText: 'Partner Name (Optional)')),
+                    const SizedBox(height: 12),
                     DropdownButtonFormField<String>(
-                      value: type,
+                      value: category,
+                      decoration: const InputDecoration(labelText: 'Category'),
                       items: const [
-                        DropdownMenuItem(value: 'standard', child: Text('Standard')),
-                        DropdownMenuItem(value: 'partner', child: Text('Partner')),
+                        DropdownMenuItem(value: 'airtime', child: Text('Airtime Recharge')),
+                        DropdownMenuItem(value: 'momo', child: Text('Mobile Money')),
+                        DropdownMenuItem(value: 'merchandise', child: Text('BoaMe Merchandise')),
+                        DropdownMenuItem(value: 'discount', child: Text('Partner Discount')),
                       ],
-                      onChanged: (value) => setDialogState(() => type = value ?? 'standard'),
-                      decoration: const InputDecoration(labelText: 'Type'),
+                      onChanged: (val) {
+                        if (val != null) setDialogState(() => category = val);
+                      },
                     ),
-                    if (type == 'partner') ...[
-                      const SizedBox(height: 10),
-                      TextField(controller: partnerController, decoration: const InputDecoration(labelText: 'Partner Name')),
-                    ],
                   ],
                 ),
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+                TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('CANCEL')),
                 ElevatedButton(
                   onPressed: () async {
                     final title = titleController.text.trim();
+                    final desc = descController.text.trim();
                     final cost = int.tryParse(costController.text.trim()) ?? 0;
+                    final partner = partnerController.text.trim();
 
-                    if (title.isEmpty || cost <= 0) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(content: Text('Title and a valid point cost are required')),
+                    if (title.isNotEmpty && cost > 0) {
+                      await ApiService().adminAddReward(
+                        title: title,
+                        description: desc,
+                        pointsCost: cost,
+                        category: category,
+                        partnerName: partner.isNotEmpty ? partner : null,
                       );
-                      return;
+                      if (mounted) {
+                        if (ctx.mounted) Navigator.pop(ctx);
+                        _refresh();
+                      }
                     }
-
-                    await FirebaseFirestore.instance.collection('rewards').add({
-                      'title': title,
-                      'description': descController.text.trim(),
-                      'costPoints': cost,
-                      'type': type,
-                      if (type == 'partner') 'partnerName': partnerController.text.trim(),
-                      'active': true,
-                      'createdAt': FieldValue.serverTimestamp(),
-                    });
-
-                    if (context.mounted) Navigator.pop(context);
                   },
                   child: const Text('ADD'),
                 ),

@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
+import '../services/api_service.dart';
 import 'admin_register_screen.dart';
 import 'admin_manage_rewards_screen.dart';
+import 'auth_gate.dart';
 import 'ui_helpers.dart';
 
 class AdminHomeScreen extends StatelessWidget {
@@ -20,7 +21,14 @@ class AdminHomeScreen extends StatelessWidget {
           IconButton(
             icon: const Icon(Icons.logout, color: Colors.white),
             onPressed: () async {
-              await FirebaseAuth.instance.signOut();
+              await ApiService().logout();
+              if (context.mounted) {
+                Navigator.pushAndRemoveUntil(
+                  context,
+                  MaterialPageRoute(builder: (context) => const AuthGate()),
+                  (route) => false,
+                );
+              }
             },
           ),
         ],

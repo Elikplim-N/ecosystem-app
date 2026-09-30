@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../services/api_service.dart';
 import 'ui_helpers.dart';
 
 class NotificationsScreen extends StatelessWidget {
@@ -8,31 +7,40 @@ class NotificationsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final user = ApiService().currentUser;
 
     if (user == null) {
       return const Scaffold(body: Center(child: Text('No user is logged in')));
     }
 
+    final notifications = [
+      {
+        'title': 'Welcome to BoaMe 🌱',
+        'body': 'Your account is ready! Drop by any BoaMe RVM kiosk to deposit plastic bottles and earn rewards.',
+        'time': 'Just now',
+        'read': false,
+      },
+      if (user.rfidUid != null && user.rfidUid!.isNotEmpty)
+        {
+          'title': 'RFID Card Linked 💳',
+          'body': 'Card UID ${user.rfidUid} is active. You can tap and deposit immediately at any kiosk.',
+          'time': 'Recent',
+          'read': true,
+        },
+      if (user.bottles > 0)
+        {
+          'title': 'Deposit Confirmed 🎉',
+          'body': 'You recycled ${user.bottles} bottle(s) and earned ${user.points} points. Keep up the green impact!',
+          'time': 'Recent',
+          'read': true,
+        },
+    ];
+
     return Scaffold(
       backgroundColor: kBackground,
       appBar: AppBar(title: const Text('Notifications')),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .doc(user.uid)
-            .collection('items')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-
-          final items = snapshot.data?.docs ?? [];
-
-          if (items.isEmpty) {
-            return const Center(
+      body: notifications.isEmpty
+          ? const Center(
               child: Padding(
                 padding: EdgeInsets.all(30),
                 child: Column(
@@ -44,40 +52,54 @@ class NotificationsScreen extends StatelessWidget {
                   ],
                 ),
               ),
-            );
-          }
+            )
+          : ListView.builder(
+              padding: const EdgeInsets.all(16),
+              itemCount: notifications.length,
+              itemBuilder: (context, index) {
+                final item = notifications[index];
+                final title = item['title'] as String;
+                final body = item['body'] as String;
+                final time = item['time'] as String;
+                final read = item['read'] as bool;
 
-          return ListView.builder(
-            padding: const EdgeInsets.all(16),
-            itemCount: items.length,
-            itemBuilder: (context, index) {
-              final doc = items[index];
-              final data = doc.data() as Map<String, dynamic>;
-              final title = data['title'] ?? '';
-              final body = data['body'] ?? '';
-              final read = data['read'] ?? false;
-
-              return Container(
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: read ? Colors.white : kPrimaryColor.withOpacity(0.08),
-                  borderRadius: BorderRadius.circular(14),
-                  boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.04), blurRadius: 8, offset: const Offset(0, 3))],
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15)),
-                    const SizedBox(height: 4),
-                    Text(body, style: const TextStyle(fontSize: 13)),
-                  ],
-                ),
-              );
-            },
-          );
-        },
-      ),
+                return Container(
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: read ? Colors.white : kPrimaryColor.withOpacity(0.08),
+                    borderRadius: BorderRadius.circular(14),
+                    border: read ? null : Border.all(color: kPrimaryColor.withOpacity(0.3)),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withOpacity(0.04),
+                        blurRadius: 8,
+                        offset: const Offset(0, 3),
+                      )
+                    ],
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Expanded(
+                            child: Text(
+                              title,
+                              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+                            ),
+                          ),
+                          Text(time, style: TextStyle(fontSize: 11, color: Colors.grey[500])),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      Text(body, style: TextStyle(fontSize: 13, color: Colors.grey[700])),
+                    ],
+                  ),
+                );
+              },
+            ),
     );
   }
 }

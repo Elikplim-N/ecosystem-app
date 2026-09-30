@@ -5,9 +5,9 @@ const kPrimaryDark = Color(0xFF00875A);
 const kTextDark = Color(0xFF1B4332);
 const kBackground = Color(0xFFF4F7F6);
 
-BoxDecoration kCardDecoration({double radius = 18}) {
+BoxDecoration kCardDecoration({double radius = 18, Color? color}) {
   return BoxDecoration(
-    color: Colors.white,
+    color: color ?? Colors.white,
     borderRadius: BorderRadius.circular(radius),
     boxShadow: [
       BoxShadow(
@@ -46,6 +46,26 @@ InputDecoration kFieldDecoration(String label, IconData icon, {Widget? suffixIco
   return InputDecoration(
     labelText: label,
     prefixIcon: Icon(icon),
+    suffixIcon: suffixIcon,
+    filled: true,
+    fillColor: Colors.white,
+    border: OutlineInputBorder(
+      borderRadius: BorderRadius.circular(14),
+      borderSide: BorderSide.none,
+    ),
+  );
+}
+
+InputDecoration kInputDecoration({
+  required String label,
+  String? hint,
+  IconData? icon,
+  Widget? suffixIcon,
+}) {
+  return InputDecoration(
+    labelText: label,
+    hintText: hint,
+    prefixIcon: icon != null ? Icon(icon) : null,
     suffixIcon: suffixIcon,
     filled: true,
     fillColor: Colors.white,

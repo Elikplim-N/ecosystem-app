@@ -1,14 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
+import 'services/api_service.dart';
 import 'screens/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Initialize centralized VPS ApiService and load cached session
+  await ApiService().init();
 
   runApp(const EcosystemApp());
 }
@@ -20,7 +18,7 @@ class EcosystemApp extends StatelessWidget {
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Ecosystem',
+      title: 'BoaMe Ecosystem',
       theme: ThemeData(
         useMaterial3: true,
         fontFamily: 'Poppins',
