@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 
 class DepositScreen extends StatelessWidget {
@@ -10,8 +10,9 @@ class DepositScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        centerTitle: true,
         title: const Text(
-          'Ecosystem Kiosk',
+          'BoaMe Kiosk',
           style: TextStyle(fontWeight: FontWeight.bold),
         ),
       ),

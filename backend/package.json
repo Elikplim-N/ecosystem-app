@@ -1,0 +1,30 @@
+{
+  "name": "ecosystem-backend",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Ecosystem recycling platform API - Postgres, no Firebase",
+  "type": "module",
+  "main": "src/server.js",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js",
+    "check": "node scripts/check-env.js",
+    "hash": "node scripts/hash-password.js",
+    "seed:passwords": "node scripts/set-seed-passwords.js",
+    "test": "node --test tests/"
+  },
+  "dependencies": {
+    "argon2": "^0.41.1",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "express-rate-limit": "^7.5.0",
+    "helmet": "^8.0.0",
+    "jsonwebtoken": "^9.0.2",
+    "pg": "^8.13.1",
+    "zod": "^3.24.1"
+  }
+}

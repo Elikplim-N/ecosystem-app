@@ -13,9 +13,10 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: kBackground,
+      backgroundColor: kAdminBackground,
       appBar: AppBar(
         title: const Text('Manage Rewards'),
+        centerTitle: true,
         actions: [
           IconButton(
             icon: const Icon(Icons.add),
@@ -62,7 +63,7 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                     ),
                     Switch(
                       value: active,
-                      activeColor: kPrimaryColor,
+                      activeThumbColor: kPrimaryColor,
                       onChanged: (value) {
                         FirebaseFirestore.instance.collection('rewards').doc(doc.id).update({'active': value});
                       },
@@ -112,7 +113,7 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
-                      value: type,
+                      initialValue: type,
                       items: const [
                         DropdownMenuItem(value: 'standard', child: Text('Standard')),
                         DropdownMenuItem(value: 'partner', child: Text('Partner')),

@@ -8,13 +8,42 @@ class BadgeInfo {
   const BadgeInfo(this.label, this.color, this.icon);
 }
 
-BadgeInfo getBadgeForPoints(num points) {
-  if (points >= 1000) {
-    return const BadgeInfo('Gold', Color(0xFFFFB020), Icons.emoji_events);
-  } else if (points >= 500) {
-    return const BadgeInfo('Silver', Color(0xFF9AA5B1), Icons.emoji_events);
-  } else if (points >= 100) {
-    return const BadgeInfo('Bronze', Color(0xFFCD7F32), Icons.emoji_events);
+/// Points needed before each tier begins.
+const int kBronzeTier = 100;
+const int kSilverTier = 500;
+const int kGoldTier = 1000;
+
+/// The tier a user has reached, or null if they have not reached Bronze yet.
+BadgeInfo? tierForPoints(num points) {
+  if (points >= kGoldTier) {
+    return const BadgeInfo('Gold', Color(0xFFFFB020), Icons.emoji_events_rounded);
   }
-  return const BadgeInfo('Newcomer', Color(0xFF00C896), Icons.eco);
+  if (points >= kSilverTier) {
+    return const BadgeInfo('Silver', Color(0xFF9AA5B1), Icons.workspace_premium_rounded);
+  }
+  if (points >= kBronzeTier) {
+    return const BadgeInfo('Bronze', Color(0xFFCD7F32), Icons.military_tech_rounded);
+  }
+  return null;
+}
+
+/// The next tier the user is working towards and how many points remain.
+///
+/// Returns null once the top tier is reached.
+({String tier, int needed})? nextTierGoal(num points) {
+  if (points >= kGoldTier) return null;
+
+  final int target = points >= kSilverTier
+      ? kGoldTier
+      : points >= kBronzeTier
+          ? kSilverTier
+          : kBronzeTier;
+
+  final String tier = points >= kSilverTier
+      ? 'Gold'
+      : points >= kBronzeTier
+          ? 'Silver'
+          : 'Bronze';
+
+  return (tier: tier, needed: (target - points).ceil().clamp(0, target));
 }
