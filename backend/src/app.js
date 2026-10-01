@@ -53,11 +53,18 @@ export function createApp() {
   // Access-Control-Allow-Credentials is not needed. Origins are listed
   // explicitly; '*' is never allowed because that would let any site call
   // this API with a stolen token.
+  //
+  // `flutter run -d chrome` picks a random port every launch, so pinning one
+  // port in CORS_ORIGINS makes the web build fail with a confusing preflight
+  // error. In development we therefore accept any loopback port. That is still
+  // same-machine only - a request from another host is rejected below.
+  const isLoopback = (url) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url);
+
   app.use(
     cors({
       origin(origin, callback) {
         if (!origin) return callback(null, true); // curl, native app, health checks
-        if (config.corsOrigins.length === 0 && !config.isProduction) return callback(null, true);
+        if (!config.isProduction && isLoopback(origin)) return callback(null, true);
         if (config.corsOrigins.includes(origin)) return callback(null, true);
         return callback(new Error(`Origin ${origin} is not allowed.`));
       },
