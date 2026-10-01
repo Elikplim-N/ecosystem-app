@@ -63,7 +63,7 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                     ),
                     Switch(
                       value: active,
-                      activeThumbColor: kPrimaryColor,
+                      activeColor: kPrimaryColor,
                       onChanged: (value) {
                         FirebaseFirestore.instance.collection('rewards').doc(doc.id).update({'active': value});
                       },
@@ -113,7 +113,7 @@ class _AdminManageRewardsScreenState extends State<AdminManageRewardsScreen> {
                     ),
                     const SizedBox(height: 10),
                     DropdownButtonFormField<String>(
-                      initialValue: type,
+                      value: type,
                       items: const [
                         DropdownMenuItem(value: 'standard', child: Text('Standard')),
                         DropdownMenuItem(value: 'partner', child: Text('Partner')),

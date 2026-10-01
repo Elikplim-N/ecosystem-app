@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import '../../data/user_repository.dart';
 import '../../data/rfid_utils.dart';
@@ -573,7 +573,7 @@ class _PickMemberSheetState extends State<_PickMemberSheet> {
 
                     return ListView.separated(
                       itemCount: matches.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      separatorBuilder: (_, __) => const SizedBox(height: 10),
                       itemBuilder: (context, index) {
                         final member = matches[index];
                         return SoftCard(

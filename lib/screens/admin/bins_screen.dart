@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../data/bins_repository.dart';
 import '../../models/app_role.dart';
 import '../../models/bin.dart';
@@ -478,7 +478,7 @@ class _MineToggle extends StatelessWidget {
           Switch(
             value: value,
             onChanged: onChanged,
-            activeThumbColor: Colors.white,
+            activeColor: Colors.white,
             activeTrackColor: kPrimaryColor,
           ),
         ],

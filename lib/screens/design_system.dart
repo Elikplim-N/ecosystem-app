@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'ui_helpers.dart';
 
 // Re-exported so a screen only ever needs one import for the whole UI kit.
@@ -266,7 +266,7 @@ class SectionHeader extends StatelessWidget {
               ],
             ),
           ),
-          if (action != null) ?action,
+          if (action != null) action!,
         ],
       ),
     );
@@ -1063,7 +1063,7 @@ class FilterRow extends StatelessWidget {
       child: ListView.separated(
         scrollDirection: Axis.horizontal,
         itemCount: options.length,
-        separatorBuilder: (_, _) => const SizedBox(width: 8),
+        separatorBuilder: (_, __) => const SizedBox(width: 8),
         itemBuilder: (context, index) {
           final option = options[index];
           final isSelected = option.value == selected;

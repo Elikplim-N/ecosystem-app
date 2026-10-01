@@ -87,7 +87,7 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
                         maxZoom: 17,
                         backgroundColor: const Color(0xFFE7E3DA),
                         interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
-                        onTap: (_, _) => setState(() => _active = null),
+                        onTap: (_, __) => setState(() => _active = null),
                       ),
                       children: [
                         TileLayer(

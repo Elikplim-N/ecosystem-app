@@ -98,14 +98,14 @@ class BinsRepository {
     await _bins.doc(bin.id).set(bin.toDocument(), SetOptions(merge: true));
   }
 
-  /// Status-only update, used by the quick action buttons.
   Future<void> setStatus(String binId, BinStatus status, {double? fillLevel}) async {
-    await _bins.doc(binId).update({
+    final data = <String, dynamic>{
       'status': status.id,
-      'fillLevel': ?fillLevel,
       'statusSource': 'manual',
       'updatedAt': FieldValue.serverTimestamp(),
-    });
+    };
+    if (fillLevel != null) data['fillLevel'] = fillLevel;
+    await _bins.doc(binId).update(data);
   }
 
   /// Manual fill-level adjustment for bins without a sensor.
