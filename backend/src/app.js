@@ -14,6 +14,8 @@ import ambassadorRoutes from './routes/ambassador.routes.js';
 import rewardRoutes from './routes/rewards.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import deviceRoutes from './routes/devices.routes.js';
+import notificationRoutes from './routes/notifications.routes.js';
+import contactRoutes from './routes/contact.routes.js';
 
 /**
  * Every mounted router, in one place.
@@ -32,6 +34,9 @@ export const ROUTE_MODULES = [
   ['/api/rewards', rewardRoutes],
   ['/api/admin', adminRoutes],
   ['/api/devices', deviceRoutes],
+  ['/api/notifications', notificationRoutes],
+  // The contact form. Deliberately not session-gated - see the route module.
+  ['/api/contact', contactRoutes],
 ];
 
 export function createApp() {

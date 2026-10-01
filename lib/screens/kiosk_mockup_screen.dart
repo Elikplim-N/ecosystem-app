@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'dart:async';
 
 // ============================================================
@@ -195,10 +195,7 @@ class _KioskMockupScreenState extends State<KioskMockupScreen> {
               duration: const Duration(seconds: 1),
               curve: Curves.easeInOut,
               builder: (context, value, child) {
-                return Opacity(
-                  opacity: value,
-                  child: child,
-                );
+                return Opacity(opacity: value, child: child);
               },
               child: const Text(
                 'TOUCH SCREEN TO BEGIN',

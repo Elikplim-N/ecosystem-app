@@ -1,7 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../data/activity_repository.dart';
+import '../services/auth_service.dart';
 import 'badge_helper.dart';
 import 'demo_data.dart';
 import 'ui_helpers.dart';
@@ -11,119 +11,118 @@ class LeaderboardScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final String? currentUid = FirebaseAuth.instance.currentUser?.uid;
+    // The ranking is public, so this works signed out too. `currentUid` is
+    // only used to highlight the signed-in person's own row.
+    final String? currentUid = auth.currentMember?.uid;
 
     return Scaffold(
       backgroundColor: kBackground,
-      appBar: AppBar(
-        title: const Text('Leaderboard'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .orderBy('points', descending: true)
-            .limit(100)
-            .snapshots(),
-        builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
-          if (snapshot.hasError) {
-            return Center(child: Text('Error: ${snapshot.error}'));
-          }
-
-          final List<_Player> players = _collect(snapshot.data?.docs ?? []);
-          final String? mine = players
-              .where((_Player p) => p.uid == currentUid)
-              .map((_Player p) => p.uid)
-              .cast<String?>()
-              .firstWhere((_) => true, orElse: () => null);
-
-          if (players.isEmpty) {
-            return const Center(child: Text('No rankings yet.'));
-          }
-
-          final List<_Player> podium =
-              players.take(3).toList(growable: false);
-          final List<_Player> rest =
-              players.skip(3).take(7).toList(growable: false);
-
-          // A player outside the top 10 gets their own row pinned below.
-          _Player? outsider;
-          if (mine != null) {
-            for (int i = 0; i < players.length; i++) {
-              if (players[i].uid == mine && i >= 10) {
-                outsider = players[i];
-                break;
+      appBar: AppBar(title: const Text('Leaderboard'), centerTitle: true),
+      body: StreamBuilder<List<LeaderboardEntry>>(
+        stream: ActivityRepository().watchLeaderboard(),
+        builder:
+            (
+              BuildContext context,
+              AsyncSnapshot<List<LeaderboardEntry>> snapshot,
+            ) {
+              if (snapshot.connectionState == ConnectionState.waiting) {
+                return const Center(child: CircularProgressIndicator());
               }
-            }
-          }
+              if (snapshot.hasError) {
+                return Center(child: Text('Error: ${snapshot.error}'));
+              }
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
-            children: [
-              _Podium(players: podium, currentUid: currentUid),
-              const SizedBox(height: 26),
-              const _ListHeading('Top 10'),
-              const SizedBox(height: 12),
-              for (int i = 0; i < rest.length; i++)
-                _RankRow(
-                  rank: i + 4,
-                  player: rest[i],
-                  isMe: rest[i].uid == currentUid,
-                ),
-              if (rest.isEmpty)
-                const Padding(
-                  padding: EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'Not enough recyclers yet to fill the table.',
-                    textAlign: TextAlign.center,
-                    style: TextStyle(color: kTextMuted),
-                  ),
-                ),
-              if (outsider != null) ...[
-                const SizedBox(height: 18),
-                const _ListHeading('Your position'),
-                const SizedBox(height: 12),
-                _RankRow(
-                  rank: players.indexOf(outsider) + 1,
-                  player: outsider,
-                  isMe: true,
-                ),
-              ],
-            ],
-          );
-        },
+              final List<_Player> players = _collect(snapshot.data ?? const []);
+              final String? mine = players
+                  .where((_Player p) => p.uid == currentUid)
+                  .map((_Player p) => p.uid)
+                  .cast<String?>()
+                  .firstWhere((_) => true, orElse: () => null);
+
+              if (players.isEmpty) {
+                return const Center(child: Text('No rankings yet.'));
+              }
+
+              final List<_Player> podium = players
+                  .take(3)
+                  .toList(growable: false);
+              final List<_Player> rest = players
+                  .skip(3)
+                  .take(7)
+                  .toList(growable: false);
+
+              // A player outside the top 10 gets their own row pinned below.
+              _Player? outsider;
+              if (mine != null) {
+                for (int i = 0; i < players.length; i++) {
+                  if (players[i].uid == mine && i >= 10) {
+                    outsider = players[i];
+                    break;
+                  }
+                }
+              }
+
+              return ListView(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+                children: [
+                  _Podium(players: podium, currentUid: currentUid),
+                  const SizedBox(height: 26),
+                  const _ListHeading('Top 10'),
+                  const SizedBox(height: 12),
+                  for (int i = 0; i < rest.length; i++)
+                    _RankRow(
+                      rank: i + 4,
+                      player: rest[i],
+                      isMe: rest[i].uid == currentUid,
+                    ),
+                  if (rest.isEmpty)
+                    const Padding(
+                      padding: EdgeInsets.symmetric(vertical: 12),
+                      child: Text(
+                        'Not enough recyclers yet to fill the table.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: kTextMuted),
+                      ),
+                    ),
+                  if (outsider != null) ...[
+                    const SizedBox(height: 18),
+                    const _ListHeading('Your position'),
+                    const SizedBox(height: 12),
+                    _RankRow(
+                      rank: players.indexOf(outsider) + 1,
+                      player: outsider,
+                      isMe: true,
+                    ),
+                  ],
+                ],
+              );
+            },
       ),
     );
   }
 
-  /// Merges live Firestore rows with demo players, ranked by points. In review
-  /// mode the sample recyclers are always blended in so the podium and the
-  /// full top 10 are populated even when only one real account exists.
-  static List<_Player> _collect(List<QueryDocumentSnapshot> docs) {
-    final List<_Player> players = docs
-        .where((QueryDocumentSnapshot doc) {
-          final Map<String, dynamic> data =
-              (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
-          return (data['role'] ?? 'user') != 'admin';
-        })
-        .map((QueryDocumentSnapshot doc) {
-          final Map<String, dynamic> data =
-              (doc.data() as Map<String, dynamic>?) ?? <String, dynamic>{};
-          return _Player(
-            uid: doc.id,
-            nickname: '${data['nickname'] ?? data['name'] ?? 'User'}',
-            avatar: '${data['avatarIcon'] ?? '🙂'}',
-            points: (data['points'] ?? 0) as num,
-          );
-        })
+  /// Merges the server's ranking with the demo players. In review mode the
+  /// sample recyclers are blended in so the podium and the full top 10 are
+  /// populated even when only one real account exists.
+  ///
+  /// The server already excludes admins and assigns ranks, so this no longer
+  /// re-filters or re-sorts live rows — it only appends demo players and lets
+  /// the sort below put them in the right place.
+  static List<_Player> _collect(List<LeaderboardEntry> entries) {
+    final List<_Player> players = entries
+        .where((LeaderboardEntry entry) => entry.role != 'admin')
+        .map(
+          (LeaderboardEntry entry) => _Player(
+            uid: entry.userId,
+            nickname: entry.displayName,
+            avatar: entry.avatarIcon ?? '🙂',
+            points: entry.points,
+          ),
+        )
         .toList();
 
     if (kDemoMode) {
-      final Set<String> existing =
-          players.map((_Player p) => p.uid).toSet();
+      final Set<String> existing = players.map((_Player p) => p.uid).toSet();
       for (final DemoUser demo in demoUsers) {
         if (!existing.contains(demo.uid)) {
           players.add(
@@ -374,7 +373,11 @@ class _PodiumCard extends StatelessWidget {
 
 /// Compact row for ranks 4 through 10.
 class _RankRow extends StatelessWidget {
-  const _RankRow({required this.rank, required this.player, required this.isMe});
+  const _RankRow({
+    required this.rank,
+    required this.player,
+    required this.isMe,
+  });
 
   final int rank;
   final _Player player;

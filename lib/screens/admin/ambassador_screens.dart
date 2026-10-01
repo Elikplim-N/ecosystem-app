@@ -35,7 +35,8 @@ class AmbassadorApplicationsScreen extends StatelessWidget {
                 const EmptyState(
                   icon: Icons.verified_user_rounded,
                   title: 'Nothing to review',
-                  message: 'New ambassador applications will appear here for approval.',
+                  message:
+                      'New ambassador applications will appear here for approval.',
                 )
               else ...[
                 Container(
@@ -84,7 +85,11 @@ class AmbassadorApplicationsScreen extends StatelessWidget {
     );
   }
 
-  Future<void> _review(BuildContext context, Member member, bool approve) async {
+  Future<void> _review(
+    BuildContext context,
+    Member member,
+    bool approve,
+  ) async {
     final confirmed = await confirmDialog(
       context,
       title: approve ? 'Approve ${member.displayName}?' : 'Reject application?',
@@ -97,11 +102,16 @@ class AmbassadorApplicationsScreen extends StatelessWidget {
     if (!confirmed) return;
 
     try {
-      await UserRepository().reviewAmbassadorApplication(uid: member.uid, approve: approve);
+      await UserRepository().reviewAmbassadorApplication(
+        uid: member.uid,
+        approve: approve,
+      );
       if (context.mounted) {
         showToast(
           context,
-          approve ? '${member.displayName} is now an ambassador' : 'Application rejected',
+          approve
+              ? '${member.displayName} is now an ambassador'
+              : 'Application rejected',
         );
       }
     } catch (e) {
@@ -125,8 +135,18 @@ class _ApplicationCard extends StatelessWidget {
     final date = member.appliedAt;
     if (date == null) return 'Recently';
     const months = [
-      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
     ];
     return '${date.day} ${months[date.month - 1]} ${date.year}';
   }
@@ -144,7 +164,10 @@ class _ApplicationCard extends StatelessWidget {
               CircleAvatar(
                 radius: 23,
                 backgroundColor: member.tint,
-                child: Text(member.avatarIcon, style: const TextStyle(fontSize: 21)),
+                child: Text(
+                  member.avatarIcon,
+                  style: const TextStyle(fontSize: 21),
+                ),
               ),
               const SizedBox(width: 13),
               Expanded(
@@ -226,9 +249,15 @@ class _ApplicationCard extends StatelessWidget {
                   label: const Text('REJECT'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: const Color(0xFFC0392B),
-                    side: const BorderSide(color: Color(0xFFC0392B), width: 1.4),
+                    side: const BorderSide(
+                      color: Color(0xFFC0392B),
+                      width: 1.4,
+                    ),
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -242,7 +271,10 @@ class _ApplicationCard extends StatelessWidget {
                   style: ElevatedButton.styleFrom(
                     backgroundColor: kPrimaryColor,
                     padding: const EdgeInsets.symmetric(vertical: 12),
-                    textStyle: const TextStyle(fontSize: 12, fontWeight: FontWeight.w800),
+                    textStyle: const TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w800,
+                    ),
                   ),
                 ),
               ),
@@ -310,7 +342,11 @@ class AmbassadorDashboard extends StatelessWidget {
                     const Text(
                       'Keep your bins healthy. Mark them full when you see them '
                       'overflowing, and add new ones in your area.',
-                      style: TextStyle(fontSize: 13.5, color: Colors.white70, height: 1.5),
+                      style: TextStyle(
+                        fontSize: 13.5,
+                        color: Colors.white70,
+                        height: 1.5,
+                      ),
                     ),
                     const SizedBox(height: 18),
                     Row(
@@ -377,17 +413,23 @@ class AmbassadorDashboard extends StatelessWidget {
                               mine.isEmpty
                                   ? 'Add the first bin in your area'
                                   : 'Update status, add bins, mark them collected',
-                              style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+                              style: const TextStyle(
+                                fontSize: 12.5,
+                                color: kTextMuted,
+                              ),
                             ),
                           ],
                         ),
                       ),
-                      const Icon(Icons.chevron_right_rounded, size: 20, color: kTextMuted),
+                      const Icon(
+                        Icons.chevron_right_rounded,
+                        size: 20,
+                        color: kTextMuted,
+                      ),
                     ],
                   ),
                 ),
-              if (onBrowseBins != null)
-                const SizedBox(height: 22),
+              if (onBrowseBins != null) const SizedBox(height: 22),
               const SectionHeader(
                 title: 'Bins near you',
                 subtitle: 'Live status across all areas',
@@ -396,7 +438,10 @@ class AmbassadorDashboard extends StatelessWidget {
               const SizedBox(height: 14),
               if (bins.any((b) => !b.isActive))
                 SoftCard(
-                  padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 12,
+                  ),
                   child: Row(
                     children: [
                       const Icon(
@@ -409,7 +454,10 @@ class AmbassadorDashboard extends StatelessWidget {
                         child: Text(
                           '${summary.disabled} bin${summary.disabled == 1 ? ' is' : 's are'} '
                           'currently disabled.',
-                          style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+                          style: const TextStyle(
+                            fontSize: 12.5,
+                            color: kTextMuted,
+                          ),
                         ),
                       ),
                     ],
@@ -459,7 +507,10 @@ void showBinQuickLook(BuildContext context, Bin bin) {
                       ),
                       Text(
                         '${bin.code}  •  ${bin.locationLabel}',
-                        style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+                        style: const TextStyle(
+                          fontSize: 12.5,
+                          color: kTextMuted,
+                        ),
                       ),
                     ],
                   ),
@@ -467,7 +518,11 @@ void showBinQuickLook(BuildContext context, Bin bin) {
               ],
             ),
             const SizedBox(height: 18),
-            LevelBar(value: bin.fillLevel / 100, color: bin.status.color, height: 10),
+            LevelBar(
+              value: bin.fillLevel / 100,
+              color: bin.status.color,
+              height: 10,
+            ),
             const SizedBox(height: 8),
             Text(
               bin.hasSensor

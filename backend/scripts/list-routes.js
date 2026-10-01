@@ -40,8 +40,13 @@ function authHint(path) {
     return path.includes('me') || path.includes('logout') ? 'session' : 'public';
   }
   if (path.startsWith('/api/admin')) return 'admin';
+  if (path.startsWith('/api/contact')) {
+    return path.includes('/me') ? 'session' : 'public or session';
+  }
   if (path.startsWith('/api/devices')) return path.endsWith('/bins') ? 'public' : 'sensor token';
   if (path.startsWith('/api/rfid')) return 'admin';
+  // The rewards catalogue admin view, which is not under /api/admin.
+  if (path.startsWith('/api/rewards/admin')) return 'admin';
   // Order matters: a member's own /me/redemptions is not an admin endpoint.
   if (path.includes('/me/')) return 'session (own)';
   if (path.includes('/redemptions') || path.includes('/applications')) return 'admin';

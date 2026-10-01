@@ -1,8 +1,7 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import '../models/app_role.dart';
+import '../services/auth_service.dart';
 import 'admin_home_screen.dart';
 import 'demo_data.dart';
 import 'home_screen.dart';
@@ -32,10 +31,12 @@ class AuthGate extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<User?>(
-      stream: FirebaseAuth.instance.authStateChanges(),
-      builder: (context, authSnapshot) {
-        if (authSnapshot.connectionState == ConnectionState.waiting) {
+    return StreamBuilder<MemberSession>(
+      stream: auth.sessions,
+      builder: (context, snapshot) {
+        // [AuthService.statusChanges] emits the current status synchronously
+        // on subscribe, so `waiting` here only means the very first frame.
+        if (!snapshot.hasData) {
           return const Scaffold(
             body: Center(
               child: CircularProgressIndicator(color: Color(0xFF006158)),
@@ -43,50 +44,29 @@ class AuthGate extends StatelessWidget {
           );
         }
 
-        final user = authSnapshot.data;
-        if (user == null) {
+        final session = snapshot.data!;
+        final member = session.member;
+
+        if (!session.signedIn || member == null) {
           return WelcomeScreen(entry: entry);
         }
 
-        return StreamBuilder<DocumentSnapshot>(
-          stream: FirebaseFirestore.instance
-              .collection('users')
-              .doc(user.uid)
-              .snapshots(),
-          builder: (context, userSnapshot) {
-            if (userSnapshot.connectionState == ConnectionState.waiting) {
-              return const Scaffold(
-                body: Center(
-                  child: CircularProgressIndicator(color: Color(0xFF006158)),
-                ),
-              );
-            }
+        final role = member.role;
 
-            // A signed-in account with no profile yet still gets a usable
-            // home screen; the profile screen is what complains about it.
-            if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-              return const HomeScreen();
-            }
+        if (member.accountDisabled) {
+          return const DisabledAccountView();
+        }
 
-            final data = userSnapshot.data!.data() as Map<String, dynamic>;
-            final role = AppRole.fromString(data['role']);
+        if (role == AppRole.admin) return const AdminHomeScreen();
 
-            if (data['accountDisabled'] == true) {
-              return const DisabledAccountView();
-            }
+        // Admins are never blocked from the app side. Going the other
+        // way is only allowed while demo data is on, so a member
+        // account cannot reach the admin console by picking a button.
+        if (entry == AppEntry.admin) {
+          return kDemoMode ? const AdminHomeScreen() : const _NotAnAdminView();
+        }
 
-            if (role == AppRole.admin) return const AdminHomeScreen();
-
-            // Admins are never blocked from the app side. Going the other
-            // way is only allowed while demo data is on, so a member
-            // account cannot reach the admin console by picking a button.
-            if (entry == AppEntry.admin) {
-              return kDemoMode ? const AdminHomeScreen() : const _NotAnAdminView();
-            }
-
-            return HomeScreen(role: role);
-          },
-        );
+        return HomeScreen(role: role);
       },
     );
   }
@@ -144,7 +124,7 @@ class _NotAnAdminView extends StatelessWidget {
               const SizedBox(height: 26),
               ElevatedButton.icon(
                 onPressed: () async {
-                  await FirebaseAuth.instance.signOut();
+                  await auth.signOut();
                   if (context.mounted) {
                     Navigator.of(context).pushAndRemoveUntil(
                       MaterialPageRoute<void>(
@@ -216,7 +196,7 @@ class DisabledAccountView extends StatelessWidget {
               ),
               const SizedBox(height: 26),
               OutlinedButton.icon(
-                onPressed: () => FirebaseAuth.instance.signOut(),
+                onPressed: () => auth.signOut(),
                 icon: const Icon(Icons.logout_rounded, size: 18),
                 label: const Text('SIGN OUT'),
               ),

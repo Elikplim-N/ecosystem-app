@@ -33,6 +33,9 @@ const schema = z.object({
         .filter(Boolean),
     ),
 
+  // Used to build links in password-reset messages.
+  APP_BASE_URL: z.string().url().default('http://localhost:3000'),
+
   LOG_LEVEL: z.enum(['debug', 'info', 'warn', 'error', 'silent']).default('info'),
 
   // Argon2id cost parameters. OWASP's second recommended option; the memory
@@ -94,6 +97,9 @@ export const config = {
   },
 
   corsOrigins: env.CORS_ORIGINS,
+
+  // Where the app lives, so links in outbound messages point somewhere real.
+  appBaseUrl: env.APP_BASE_URL,
 };
 
 export default config;

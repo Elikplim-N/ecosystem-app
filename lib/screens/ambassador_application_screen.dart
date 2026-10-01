@@ -1,8 +1,8 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import '../data/user_repository.dart';
 import '../models/app_role.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
 import 'design_system.dart';
 
 /// Lets a normal member apply to become an ambassador.
@@ -14,202 +14,198 @@ class AmbassadorApplicationScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-    if (user == null) return const SignedOutView();
+    return StreamBuilder<MemberSession>(
+      stream: auth.sessions,
+      builder: (context, snapshot) {
+        if (!snapshot.hasData) return const LoadingView();
 
-    return AppPage(
-      title: 'Become an ambassador',
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots(),
-        builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
-            return const LoadingView();
-          }
+        final member = snapshot.data!.member;
+        if (!snapshot.data!.signedIn || member == null) {
+          return const SignedOutView();
+        }
 
-          final data = (snapshot.data?.data() as Map<String, dynamic>?) ?? const {};
-          final name = (data['name'] ?? '').toString();
-          final status = AmbassadorStatus.fromString(data['ambassadorStatus']);
-          final role = AppRole.fromString(data['role']);
-          final note = (data['ambassadorReviewNote'] ?? '').toString();
+        final name = member.name;
+        final status = member.ambassadorStatus;
+        final role = member.role;
+        final note = member.reviewNote ?? '';
 
-          return ListView(
-            padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
-            children: [
-              GradientCard(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Eyebrow('Ambassador programme'),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Help keep your area clean',
-                      style: TextStyle(
-                        fontSize: 21,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                      ),
+        return ListView(
+          padding: const EdgeInsets.fromLTRB(20, 4, 20, 40),
+          children: [
+            GradientCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Eyebrow('Ambassador programme'),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Help keep your area clean',
+                    style: TextStyle(
+                      fontSize: 21,
+                      fontWeight: FontWeight.w900,
+                      color: Colors.white,
                     ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Ambassadors look after the bins near them. You will be able '
-                      'to add new bins, set where they are, and flag a bin as '
-                      'full so a driver knows to collect it.',
-                      style: TextStyle(
-                        fontSize: 13.5,
-                        color: Colors.white70,
-                        height: 1.5,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Ambassadors look after the bins near them. You will be able '
+                    'to add new bins, set where they are, and flag a bin as '
+                    'full so a driver knows to collect it.',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      color: Colors.white70,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            if (role.isAmbassadorOrAdmin)
+              const SoftCard(
+                border: kBeigeDeep,
+                child: Row(
+                  children: [
+                    IconChip(
+                      icon: Icons.verified_rounded,
+                      tint: kPastelMint,
+                      color: kPrimaryColor,
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Text(
+                        'You are already an ambassador. Your tools are on the '
+                        'Ambassador dashboard.',
+                        style: TextStyle(
+                          fontSize: 13.5,
+                          color: kTextMuted,
+                          height: 1.45,
+                        ),
                       ),
                     ),
                   ],
                 ),
-              ),
-              const SizedBox(height: 20),
-              if (role.isAmbassadorOrAdmin)
-                const SoftCard(
-                  border: kBeigeDeep,
-                  child: Row(
-                    children: [
-                      IconChip(
-                        icon: Icons.verified_rounded,
-                        tint: kPastelMint,
-                        color: kPrimaryColor,
+              )
+            else if (status == AmbassadorStatus.pending)
+              const SoftCard(
+                border: kAccentOrange,
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    IconChip(
+                      icon: Icons.hourglass_top_rounded,
+                      tint: Color(0xFFFBEFD9),
+                      color: kAccentOrange,
+                    ),
+                    SizedBox(width: 14),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            'Application under review',
+                            style: TextStyle(
+                              fontSize: 14.5,
+                              fontWeight: FontWeight.w800,
+                              color: kTextDark,
+                            ),
+                          ),
+                          SizedBox(height: 4),
+                          Text(
+                            'An admin will look at your application. You will '
+                            'get a notification once there is a decision.',
+                            style: TextStyle(
+                              fontSize: 13,
+                              color: kTextMuted,
+                              height: 1.45,
+                            ),
+                          ),
+                        ],
                       ),
-                      SizedBox(width: 14),
-                      Expanded(
-                        child: Text(
-                          'You are already an ambassador. Your tools are on the '
-                          'Ambassador dashboard.',
-                          style: TextStyle(fontSize: 13.5, color: kTextMuted, height: 1.45),
-                        ),
-                      ),
-                    ],
-                  ),
-                )
-              else if (status == AmbassadorStatus.pending)
-                const SoftCard(
-                  border: kAccentOrange,
+                    ),
+                  ],
+                ),
+              )
+            else ...[
+              if (status == AmbassadorStatus.rejected) ...[
+                SoftCard(
+                  border: const Color(0xFFC0392B),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      IconChip(
-                        icon: Icons.hourglass_top_rounded,
-                        tint: Color(0xFFFBEFD9),
-                        color: kAccentOrange,
+                      const IconChip(
+                        icon: Icons.cancel_rounded,
+                        tint: kPastelPink,
+                        color: Color(0xFFC0392B),
                       ),
-                      SizedBox(width: 14),
+                      const SizedBox(width: 14),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              'Application under review',
+                            const Text(
+                              'Not approved this time',
                               style: TextStyle(
                                 fontSize: 14.5,
                                 fontWeight: FontWeight.w800,
                                 color: kTextDark,
                               ),
                             ),
-                            SizedBox(height: 4),
-                            Text(
-                              'An admin will look at your application. You will '
-                              'get a notification once there is a decision.',
-                              style: TextStyle(
-                                fontSize: 13,
-                                color: kTextMuted,
-                                height: 1.45,
+                            if (note.isNotEmpty) ...[
+                              const SizedBox(height: 4),
+                              Text(
+                                note,
+                                style: const TextStyle(
+                                  fontSize: 13,
+                                  color: kTextMuted,
+                                  height: 1.45,
+                                ),
                               ),
+                            ],
+                            const SizedBox(height: 4),
+                            const Text(
+                              'You are welcome to apply again.',
+                              style: TextStyle(fontSize: 13, color: kTextMuted),
                             ),
                           ],
                         ),
                       ),
                     ],
                   ),
-                )
-              else ...[
-                if (status == AmbassadorStatus.rejected) ...[
-                  SoftCard(
-                    border: const Color(0xFFC0392B),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const IconChip(
-                          icon: Icons.cancel_rounded,
-                          tint: kPastelPink,
-                          color: Color(0xFFC0392B),
-                        ),
-                        const SizedBox(width: 14),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              const Text(
-                                'Not approved this time',
-                                style: TextStyle(
-                                  fontSize: 14.5,
-                                  fontWeight: FontWeight.w800,
-                                  color: kTextDark,
-                                ),
-                              ),
-                              if (note.isNotEmpty) ...[
-                                const SizedBox(height: 4),
-                                Text(
-                                  note,
-                                  style: const TextStyle(
-                                    fontSize: 13,
-                                    color: kTextMuted,
-                                    height: 1.45,
-                                  ),
-                                ),
-                              ],
-                              const SizedBox(height: 4),
-                              const Text(
-                                'You are welcome to apply again.',
-                                style: TextStyle(fontSize: 13, color: kTextMuted),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 16),
-                ],
-                const SectionHeader(title: 'What you will be able to do'),
-                const _Perk(
-                  icon: Icons.add_location_alt_rounded,
-                  text: 'Add new bins and set exactly where they sit',
                 ),
-                const SizedBox(height: 10),
-                const _Perk(
-                  icon: Icons.delete_outline_rounded,
-                  text: 'Set a bin as full or filling without waiting for staff',
-                ),
-                const SizedBox(height: 10),
-                const _Perk(
-                  icon: Icons.map_rounded,
-                  text: 'See every bin and its status on the live map',
-                ),
-                const SizedBox(height: 10),
-                const _Perk(
-                  icon: Icons.local_shipping_rounded,
-                  text: 'Confirm a bin was collected once the driver empties it',
-                ),
-                const SizedBox(height: 22),
-                _ApplicationForm(
-                  defaultName: name,
-                  initialArea: (data['ambassadorApplication']
-                          as Map<String, dynamic>?)?['area']
-                      ?.toString() ??
-                      '',
-                ),
+                const SizedBox(height: 16),
               ],
+              const SectionHeader(title: 'What you will be able to do'),
+              const _Perk(
+                icon: Icons.add_location_alt_rounded,
+                text: 'Add new bins and set exactly where they sit',
+              ),
+              const SizedBox(height: 10),
+              const _Perk(
+                icon: Icons.delete_outline_rounded,
+                text: 'Set a bin as full or filling without waiting for staff',
+              ),
+              const SizedBox(height: 10),
+              const _Perk(
+                icon: Icons.map_rounded,
+                text: 'See every bin and its status on the live map',
+              ),
+              const SizedBox(height: 10),
+              const _Perk(
+                icon: Icons.local_shipping_rounded,
+                text: 'Confirm a bin was collected once the driver empties it',
+              ),
+              const SizedBox(height: 22),
+              _ApplicationForm(
+                defaultName: name,
+                // Refilled from the member's own record so a rejected
+                // applicant can resubmit without retyping everything.
+                initialArea: member.area ?? '',
+              ),
             ],
-          );
-        },
-      ),
+          ],
+        );
+      },
     );
   }
 }
@@ -232,7 +228,11 @@ class _Perk extends StatelessWidget {
           Expanded(
             child: Text(
               text,
-              style: const TextStyle(fontSize: 13.5, color: kTextDark, height: 1.4),
+              style: const TextStyle(
+                fontSize: 13.5,
+                color: kTextDark,
+                height: 1.4,
+              ),
             ),
           ),
         ],
@@ -242,7 +242,10 @@ class _Perk extends StatelessWidget {
 }
 
 class _ApplicationForm extends StatefulWidget {
-  const _ApplicationForm({required this.defaultName, required this.initialArea});
+  const _ApplicationForm({
+    required this.defaultName,
+    required this.initialArea,
+  });
 
   final String defaultName;
   final String initialArea;
@@ -278,20 +281,29 @@ class _ApplicationFormState extends State<_ApplicationForm> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
-    final uid = FirebaseAuth.instance.currentUser!.uid;
 
     setState(() => _sending = true);
     try {
+      // No uid is sent: the API takes the applicant from the session, so
+      // there is no way to apply on someone else's behalf.
       await _repo.applyForAmbassador(
-        uid: uid,
-        name: _name.text.trim(),
         area: _area.text,
         motivation: _motivation.text,
       );
+
+      // Refresh so the status card above this form switches to "pending"
+      // straight away rather than waiting for the next poll.
+      await auth.refreshCurrentMember();
+
       if (!mounted) return;
       showToast(context, 'Application sent for review');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not send your application: $e');
+    } on ApiException catch (e) {
+      if (mounted) {
+        showToast(
+          context,
+          e.isUserFacing ? e.message : 'Could not send your application',
+        );
+      }
     } finally {
       if (mounted) setState(() => _sending = false);
     }
@@ -314,8 +326,9 @@ class _ApplicationFormState extends State<_ApplicationForm> {
               controller: _name,
               textCapitalization: TextCapitalization.words,
               decoration: _decoration('Your name'),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Please enter your name' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Please enter your name'
+                  : null,
             ),
             const SizedBox(height: 14),
             const _Label('Area you want to look after'),
@@ -323,9 +336,8 @@ class _ApplicationFormState extends State<_ApplicationForm> {
               controller: _area,
               textCapitalization: TextCapitalization.words,
               decoration: _decoration('e.g. Hostel Block A, Market Square'),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Tell us which area'
-                  : null,
+              validator: (v) =>
+                  (v == null || v.trim().isEmpty) ? 'Tell us which area' : null,
             ),
             const SizedBox(height: 14),
             const _Label('Why do you want to join?'),

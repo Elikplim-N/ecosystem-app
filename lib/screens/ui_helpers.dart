@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -116,7 +116,12 @@ Widget kGradientHeader({
 }) {
   return Container(
     width: double.infinity,
-    padding: EdgeInsets.fromLTRB(20, MediaQuery.of(context).padding.top + topPadding, 20, 30),
+    padding: EdgeInsets.fromLTRB(
+      20,
+      MediaQuery.of(context).padding.top + topPadding,
+      20,
+      30,
+    ),
     decoration: const BoxDecoration(
       gradient: LinearGradient(
         begin: Alignment.topLeft,
@@ -139,11 +144,18 @@ OutlineInputBorder _fieldBorder(Color color, {double width = 1.2}) {
   );
 }
 
-InputDecoration kFieldDecoration(String label, IconData icon, {Widget? suffixIcon}) {
+InputDecoration kFieldDecoration(
+  String label,
+  IconData icon, {
+  Widget? suffixIcon,
+}) {
   return InputDecoration(
     labelText: label,
     labelStyle: const TextStyle(color: kTextMuted, fontWeight: FontWeight.w500),
-    floatingLabelStyle: const TextStyle(color: kPrimaryColor, fontWeight: FontWeight.w600),
+    floatingLabelStyle: const TextStyle(
+      color: kPrimaryColor,
+      fontWeight: FontWeight.w600,
+    ),
     prefixIcon: Icon(icon, size: 20, color: kPrimaryColor),
     suffixIcon: suffixIcon,
     filled: true,
@@ -186,7 +198,10 @@ class PrimaryButton extends StatelessWidget {
         ? const SizedBox(
             height: 22,
             width: 22,
-            child: CircularProgressIndicator(strokeWidth: 2.4, color: Colors.white),
+            child: CircularProgressIndicator(
+              strokeWidth: 2.4,
+              color: Colors.white,
+            ),
           )
         : Row(
             mainAxisSize: MainAxisSize.min,
@@ -213,7 +228,9 @@ class PrimaryButton extends StatelessWidget {
         color: Colors.transparent,
         child: Ink(
           decoration: BoxDecoration(
-            gradient: const LinearGradient(colors: [kPrimaryColor, kPrimaryDark]),
+            gradient: const LinearGradient(
+              colors: [kPrimaryColor, kPrimaryDark],
+            ),
             borderRadius: BorderRadius.circular(999),
             boxShadow: [
               BoxShadow(
@@ -261,7 +278,10 @@ class PillToggle extends StatelessWidget {
     return Container(
       height: height,
       padding: const EdgeInsets.all(5),
-      decoration: BoxDecoration(color: kBeige, borderRadius: BorderRadius.circular(999)),
+      decoration: BoxDecoration(
+        color: kBeige,
+        borderRadius: BorderRadius.circular(999),
+      ),
       child: LayoutBuilder(
         builder: (BuildContext context, BoxConstraints constraints) {
           final double slot = constraints.maxWidth / labels.length;
@@ -271,7 +291,9 @@ class PillToggle extends StatelessWidget {
               AnimatedAlign(
                 duration: const Duration(milliseconds: 280),
                 curve: Curves.easeOutCubic,
-                alignment: index == 0 ? Alignment.centerLeft : Alignment.centerRight,
+                alignment: index == 0
+                    ? Alignment.centerLeft
+                    : Alignment.centerRight,
                 child: Container(
                   width: slot,
                   height: height - 10,
@@ -333,12 +355,8 @@ class GlossyBackdrop extends StatelessWidget {
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: colors ??
-              const [
-                Color(0xFF0A7C6E),
-                kPrimaryColor,
-                kPrimaryDark,
-              ],
+          colors:
+              colors ?? const [Color(0xFF0A7C6E), kPrimaryColor, kPrimaryDark],
         ),
       ),
       child: Stack(
@@ -362,17 +380,18 @@ class _GlossPainter extends CustomPainter {
       Offset(size.width * 0.86, size.height * 0.10),
       size.width * 0.55,
       Paint()
-        ..shader = RadialGradient(
-          colors: [
-            Colors.white.withValues(alpha: 0.26),
-            Colors.white.withValues(alpha: 0.0),
-          ],
-        ).createShader(
-          Rect.fromCircle(
-            center: Offset(size.width * 0.86, size.height * 0.10),
-            radius: size.width * 0.55,
-          ),
-        ),
+        ..shader =
+            RadialGradient(
+              colors: [
+                Colors.white.withValues(alpha: 0.26),
+                Colors.white.withValues(alpha: 0.0),
+              ],
+            ).createShader(
+              Rect.fromCircle(
+                center: Offset(size.width * 0.86, size.height * 0.10),
+                radius: size.width * 0.55,
+              ),
+            ),
     );
 
     // Wide diagonal gloss sweep across the middle.
@@ -382,7 +401,10 @@ class _GlossPainter extends CustomPainter {
       ..lineTo(size.width * 1.05, -size.height * 0.05)
       ..lineTo(size.width * 0.15, size.height * 0.62)
       ..close();
-    canvas.drawPath(sweep, Paint()..color = Colors.white.withValues(alpha: 0.07));
+    canvas.drawPath(
+      sweep,
+      Paint()..color = Colors.white.withValues(alpha: 0.07),
+    );
 
     // Faint tinted blobs for depth.
     canvas.drawCircle(

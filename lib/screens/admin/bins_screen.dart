@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import '../../data/bins_repository.dart';
 import '../../models/app_role.dart';
 import '../../models/bin.dart';
@@ -63,11 +63,8 @@ class _BinsScreenState extends State<BinsScreen> {
     super.dispose();
   }
 
-  bool _canEdit(Bin bin) => BinsRepository.canEdit(
-        bin,
-        uid: widget.uid,
-        role: widget.role.id,
-      );
+  bool _canEdit(Bin bin) =>
+      BinsRepository.canEdit(bin, uid: widget.uid, role: widget.role.id);
 
   List<Bin> _apply(List<Bin> bins) {
     final query = _searchController.text.trim().toLowerCase();
@@ -195,7 +192,9 @@ class _BinsScreenState extends State<BinsScreen> {
                   action: all.isEmpty
                       ? ElevatedButton.icon(
                           onPressed: () => _openEditor(null),
-                          style: ElevatedButton.styleFrom(backgroundColor: kPrimaryColor),
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: kPrimaryColor,
+                          ),
                           icon: const Icon(Icons.add_rounded, size: 18),
                           label: const Text('ADD BIN'),
                         )
@@ -329,7 +328,10 @@ class Compartment extends StatelessWidget {
               ),
               if (full)
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 8,
+                    vertical: 3,
+                  ),
                   decoration: BoxDecoration(
                     color: accent,
                     borderRadius: BorderRadius.circular(999),
@@ -472,7 +474,11 @@ class _MineToggle extends StatelessWidget {
           const Expanded(
             child: Text(
               'Only bins I added',
-              style: TextStyle(fontSize: 14, fontWeight: FontWeight.w700, color: kTextDark),
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w700,
+                color: kTextDark,
+              ),
             ),
           ),
           Switch(
@@ -512,8 +518,8 @@ class _BinCard extends StatelessWidget {
       border: bin.needsCollection
           ? kMetricAmber.withValues(alpha: 0.45)
           : disabled
-              ? kBeigeDeep
-              : kMetricTeal.withValues(alpha: 0.18),
+          ? kBeigeDeep
+          : kMetricTeal.withValues(alpha: 0.18),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -549,7 +555,11 @@ class _BinCard extends StatelessWidget {
               else if (bin.needsCollection)
                 RolePill(label: 'Full', color: kMetricAmber),
               const SizedBox(width: 8),
-              const Icon(Icons.chevron_right_rounded, size: 20, color: kTextMuted),
+              const Icon(
+                Icons.chevron_right_rounded,
+                size: 20,
+                color: kTextMuted,
+              ),
             ],
           ),
           const SizedBox(height: 14),
@@ -567,7 +577,11 @@ class _BinCard extends StatelessWidget {
                   Expanded(
                     child: Text(
                       'This bin is out of service',
-                      style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w700, color: kTextMuted),
+                      style: TextStyle(
+                        fontSize: 12.5,
+                        fontWeight: FontWeight.w700,
+                        color: kTextMuted,
+                      ),
                     ),
                   ),
                 ],
@@ -639,14 +653,21 @@ Future<void> showBinDetailSheet(
                         const SizedBox(height: 3),
                         Text(
                           '${bin.code}  ${bin.locationLabel}',
-                          style: const TextStyle(fontSize: 13, color: kTextMuted),
+                          style: const TextStyle(
+                            fontSize: 13,
+                            color: kTextMuted,
+                          ),
                         ),
                       ],
                     ),
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, size: 20, color: kTextMuted),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: kTextMuted,
+                    ),
                   ),
                 ],
               ),
@@ -660,12 +681,20 @@ Future<void> showBinDetailSheet(
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.pause_circle_rounded, size: 18, color: kTextMuted),
+                      Icon(
+                        Icons.pause_circle_rounded,
+                        size: 18,
+                        color: kTextMuted,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'This bin is out of service',
-                          style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: kTextMuted),
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w700,
+                            color: kTextMuted,
+                          ),
                         ),
                       ),
                     ],
@@ -679,9 +708,21 @@ Future<void> showBinDetailSheet(
                 padding: const EdgeInsets.fromLTRB(16, 6, 16, 6),
                 child: Column(
                   children: [
-                    _DetailRow(Icons.place_rounded, 'Location', bin.locationLabel),
-                    _DetailRow(Icons.category_rounded, 'Collects', bin.collects),
-                    _DetailRow(Icons.person_rounded, 'Added by', bin.createdByName ?? 'Unknown'),
+                    _DetailRow(
+                      Icons.place_rounded,
+                      'Location',
+                      bin.locationLabel,
+                    ),
+                    _DetailRow(
+                      Icons.category_rounded,
+                      'Collects',
+                      bin.collects,
+                    ),
+                    _DetailRow(
+                      Icons.person_rounded,
+                      'Added by',
+                      bin.createdByName ?? 'Unknown',
+                    ),
                     if (bin.lastCollected != null)
                       _DetailRow(
                         Icons.local_shipping_rounded,
@@ -697,7 +738,8 @@ Future<void> showBinDetailSheet(
                 ActionButton(
                   icon: Icons.local_shipping_rounded,
                   label: 'Mark as emptied',
-                  description: 'Empties both containers and records the collection',
+                  description:
+                      'Empties both containers and records the collection',
                   tint: kPrimaryColor,
                   onTap: () {
                     Navigator.pop(context);
@@ -718,8 +760,12 @@ Future<void> showBinDetailSheet(
                   icon: bin.status == BinStatus.disabled
                       ? Icons.play_circle_rounded
                       : Icons.pause_circle_rounded,
-                  label: bin.status == BinStatus.disabled ? 'Re-enable bin' : 'Disable bin',
-                  tint: bin.status == BinStatus.disabled ? kPrimaryColor : kMetricAmber,
+                  label: bin.status == BinStatus.disabled
+                      ? 'Re-enable bin'
+                      : 'Disable bin',
+                  tint: bin.status == BinStatus.disabled
+                      ? kPrimaryColor
+                      : kMetricAmber,
                   onTap: () {
                     Navigator.pop(context);
                     onToggleDisabled();
@@ -744,12 +790,20 @@ Future<void> showBinDetailSheet(
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.lock_rounded, size: 17, color: kColouredBottle),
+                      Icon(
+                        Icons.lock_rounded,
+                        size: 17,
+                        color: kColouredBottle,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'You can view this bin, but only the admin who added it can change it.',
-                          style: TextStyle(fontSize: 12.5, color: kTextDark, height: 1.4),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: kTextDark,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -766,8 +820,18 @@ Future<void> showBinDetailSheet(
 /// '12 Mar 2025, 14:05'
 String _friendlyDate(DateTime date) {
   const months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
   final hour = date.hour.toString().padLeft(2, '0');
   final minute = date.minute.toString().padLeft(2, '0');
@@ -795,7 +859,11 @@ class _DetailRow extends StatelessWidget {
             width: 96,
             child: Text(
               label,
-              style: const TextStyle(fontSize: 12.5, fontWeight: FontWeight.w600, color: kTextMuted),
+              style: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+                color: kTextMuted,
+              ),
             ),
           ),
           Expanded(

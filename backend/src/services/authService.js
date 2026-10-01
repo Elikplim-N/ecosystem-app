@@ -197,6 +197,86 @@ export async function authenticate(identifier, password) {
   return user;
 }
 
+/**
+ * Issue a single-use password-reset token.
+ *
+ * Same rule as refresh tokens: only the SHA-256 goes in the database, so a
+ * leaked backup does not hand out working reset links. Superseding any
+ * outstanding token means only the most recent request can be used - asking
+ * for a second reset quietly invalidates the first, which is what stops an
+ * emailed older link from still working.
+ *
+ * @returns {Promise<string>} the plaintext token, returned exactly once.
+ */
+export async function createPasswordResetToken(client, userId) {
+  const token = newRefreshToken();
+  await client.query(
+    `update auth_tokens
+        set used_at = now()
+      where user_id = $1 and purpose = 'password_reset' and used_at is null`,
+    [userId],
+  );
+  await client.query(
+    `insert into auth_tokens (user_id, purpose, token_hash, expires_at)
+     values ($1, 'password_reset', $2, now() + interval '1 hour')`,
+    [userId, hashToken(token)],
+  );
+  return token;
+}
+
+/**
+ * Consume a reset token and set a new password.
+ *
+ * The row is locked FOR UPDATE and the whole thing runs in one transaction, so
+ * two simultaneous redemptions of the same token cannot both succeed: the
+ * second blocks on the row lock, then sees used_at already set and fails.
+ *
+ * Every existing session is revoked in the same transaction. A password reset
+ * is how someone recovers a hijacked account, so the point is also to evict
+ * whoever else might be signed in.
+ */
+export async function resetPasswordWithToken(token, newPassword) {
+  const hash = hashToken(token);
+
+  return withTransaction(async (client) => {
+    const { rows } = await client.query(
+      `select id, user_id, used_at, expires_at from auth_tokens
+        where token_hash = $1 and purpose = 'password_reset'
+        for update`,
+      [hash],
+    );
+
+    const row = rows[0];
+    if (!row || row.used_at || new Date(row.expires_at) <= new Date()) {
+      throw AppError.badRequest('That reset link is no longer valid. Request a new one.');
+    }
+
+    const password = await hashPassword(newPassword);
+
+    const { rows: updated } = await client.query(
+      `update users
+          set password_hash = $2, failed_login_count = 0, locked_until = null
+        where id = $1
+        returning id, name, nickname, phone, email, avatar_icon, role_id, account_state,
+                  ambassador_state, points, bottles, weight_kg`,
+      [row.user_id, password],
+    );
+
+    await client.query(
+      `update auth_tokens set used_at = now() where id = $1`,
+      [row.id],
+    );
+
+    await client.query(
+      `update auth_sessions set state = 'revoked', revoked_at = now()
+        where user_id = $1 and state = 'active'`,
+      [row.user_id],
+    );
+
+    return updated[0];
+  });
+}
+
 export default {
   hashPassword,
   verifyPassword,
@@ -205,4 +285,6 @@ export default {
   revokeSession,
   revokeAllSessions,
   authenticate,
+  createPasswordResetToken,
+  resetPasswordWithToken,
 };

@@ -153,5 +153,6 @@ enum AmbassadorStatus {
     }
   }
 
-  bool get canApply => this == AmbassadorStatus.none || this == AmbassadorStatus.rejected;
+  bool get canApply =>
+      this == AmbassadorStatus.none || this == AmbassadorStatus.rejected;
 }

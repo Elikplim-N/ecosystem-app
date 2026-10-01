@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../data/activity_repository.dart';
 import 'ui_helpers.dart';
 
 /// One deposit row, shared by the dashboard activity feed and the full
@@ -21,22 +21,21 @@ class ActivityRow {
 
   bool get isColoured => kind.toLowerCase().contains('colo');
 
-  /// Builds a row from a raw Firestore deposit document.
-  factory ActivityRow.fromDocument(Map<String, dynamic> data) {
+  /// Builds a row from a REST deposit.
+  factory ActivityRow.fromDeposit(Deposit deposit) {
     return ActivityRow(
-      kind: bottleKindFrom(data),
-      weight: '${data['weight'] ?? 0.0} kg',
-      points: '${data['points'] ?? 0}',
-      when: (data['timestamp'] as Timestamp?)?.toDate(),
+      kind: bottleKindFrom(deposit.bottleKind),
+      weight: '${deposit.weightKg} kg',
+      points: '${deposit.pointsAwarded}',
+      when: deposit.at,
     );
   }
 }
 
 /// Coloured bottles return `Coloured`, everything else `Clear`.
-String bottleKindFrom(Map<String, dynamic> data) {
-  final String raw =
-      '${data['bottleType'] ?? data['type'] ?? 'clear'}'.toLowerCase();
-  return raw.contains('colo') ? 'Coloured' : 'Clear';
+String bottleKindFrom(String raw) {
+  final normalised = raw.toLowerCase();
+  return normalised.contains('colo') ? 'Coloured' : 'Clear';
 }
 
 /// The single deposit card design used across both surfaces.
@@ -46,8 +45,18 @@ class ActivityCard extends StatelessWidget {
   final ActivityRow row;
 
   static const List<String> _months = [
-    'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    'Jan',
+    'Feb',
+    'Mar',
+    'Apr',
+    'May',
+    'Jun',
+    'Jul',
+    'Aug',
+    'Sep',
+    'Oct',
+    'Nov',
+    'Dec',
   ];
 
   Color get _accent => row.isColoured ? kColouredBottle : kClearBottle;
@@ -92,11 +101,7 @@ class ActivityCard extends StatelessWidget {
               color: _accent.withValues(alpha: 0.12),
               borderRadius: BorderRadius.circular(13),
             ),
-            child: Icon(
-              Icons.local_drink_rounded,
-              size: 21,
-              color: _accent,
-            ),
+            child: Icon(Icons.local_drink_rounded, size: 21, color: _accent),
           ),
           const SizedBox(width: 14),
           Expanded(

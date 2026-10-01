@@ -1,5 +1,3 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
 import 'activity_card.dart';
@@ -11,7 +9,10 @@ import 'notifications_screen.dart';
 import 'profile_screen.dart';
 import 'rewards_page.dart';
 import 'design_system.dart';
+import '../data/activity_repository.dart';
 import '../models/app_role.dart';
+import '../models/member.dart';
+import '../services/auth_service.dart';
 import 'admin/ambassador_screens.dart';
 import 'admin/bins_screen.dart';
 import 'ambassador_application_screen.dart';
@@ -33,33 +34,34 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const SignedOutView();
-    }
-
-    return StreamBuilder<DocumentSnapshot>(
-      stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
-      builder: (BuildContext context, AsyncSnapshot<DocumentSnapshot> snapshot) {
-        if (snapshot.connectionState == ConnectionState.waiting) {
-          return const Scaffold(body: Center(child: CircularProgressIndicator()));
-        }
-        if (snapshot.hasError) {
-          return Scaffold(body: Center(child: Text('Error: ${snapshot.error}')));
-        }
-        if (!snapshot.hasData || !snapshot.data!.exists) {
-          return const Scaffold(body: Center(child: Text('User data not found')));
+    return StreamBuilder<MemberSession>(
+      stream: auth.sessions,
+      builder: (BuildContext context, AsyncSnapshot<MemberSession> snapshot) {
+        if (!snapshot.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
         }
 
-        final Map<String, dynamic> data = snapshot.data!.data() as Map<String, dynamic>;
-        final String name = (data['nickname'] ?? data['name'] ?? 'User') as String;
-        final String avatarIcon = (data['avatarIcon'] ?? '') as String;
-        final String points = '${data['points'] ?? 0}';
-        final String bottles = '${data['bottles'] ?? 0}';
-        final String weight = '${data['weight'] ?? 0.0}';
-        final AmbassadorStatus ambassadorStatus =
-            AmbassadorStatus.fromString(data['ambassadorStatus']);
+        final member = snapshot.data!.member;
+
+        if (!snapshot.data!.signedIn || member == null) {
+          return const SignedOutView();
+        }
+
+        // Read straight off the member rather than re-fetching the profile
+        // document the way this used to. The session stream already carries
+        // the server's copy and refreshes it, so the dashboard, the header and
+        // the admin console can never show three different point totals.
+        final Member data = member;
+        final String name = data.nickname.isEmpty
+            ? data.displayName
+            : data.nickname;
+        final String avatarIcon = data.avatarIcon;
+        final String points = '${data.points}';
+        final String bottles = '${data.bottles}';
+        final String weight = '${data.weight}';
+        final AmbassadorStatus ambassadorStatus = data.ambassadorStatus;
         final bool isAmbassador = role == AppRole.ambassador;
 
         return Scaffold(
@@ -118,7 +120,9 @@ class HomeScreen extends StatelessWidget {
                             asset: 'assets/history.png',
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const HistoryScreen(),
+                              ),
                             ),
                           ),
                           _QuickActionCard(
@@ -128,7 +132,9 @@ class HomeScreen extends StatelessWidget {
                             asset: 'assets/rewrads.png',
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const RewardsScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const RewardsScreen(),
+                              ),
                             ),
                           ),
                           _QuickActionCard(
@@ -138,7 +144,9 @@ class HomeScreen extends StatelessWidget {
                             asset: 'assets/leaderbaord.png',
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const LeaderboardScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const LeaderboardScreen(),
+                              ),
                             ),
                           ),
                           _QuickActionCard(
@@ -148,7 +156,9 @@ class HomeScreen extends StatelessWidget {
                             asset: 'assets/contact (2).png',
                             onTap: () => Navigator.push(
                               context,
-                              MaterialPageRoute(builder: (_) => const ContactScreen()),
+                              MaterialPageRoute(
+                                builder: (_) => const ContactScreen(),
+                              ),
                             ),
                           ),
                         ],
@@ -156,10 +166,10 @@ class HomeScreen extends StatelessWidget {
                       const SizedBox(height: 30),
                       const _SectionTitle('Recent Activity'),
                       const SizedBox(height: 14),
-                      _ActivityFeed(uid: user.uid),
+                      const _ActivityFeed(),
                       const SizedBox(height: 30),
                       _AmbassadorSection(
-                        uid: user.uid,
+                        uid: data.uid,
                         name: name,
                         isAmbassador: isAmbassador,
                         status: ambassadorStatus,
@@ -178,15 +188,30 @@ class HomeScreen extends StatelessWidget {
             backgroundColor: Colors.white,
             onTap: (int index) {
               if (index == 1) {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const RewardsScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const RewardsScreen()),
+                );
               } else if (index == 2) {
-                Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                );
               }
             },
             items: const [
-              BottomNavigationBarItem(icon: Icon(Icons.home_outlined), label: 'Home'),
-              BottomNavigationBarItem(icon: Icon(Icons.card_giftcard), label: 'Rewards'),
-              BottomNavigationBarItem(icon: Icon(Icons.person_outline), label: 'Profile'),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.home_outlined),
+                label: 'Home',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.card_giftcard),
+                label: 'Rewards',
+              ),
+              BottomNavigationBarItem(
+                icon: Icon(Icons.person_outline),
+                label: 'Profile',
+              ),
             ],
           ),
         );
@@ -207,7 +232,12 @@ class _TopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 14, 20, 0),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.paddingOf(context).top + 14,
+        20,
+        0,
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -231,7 +261,11 @@ class _TopBar extends StatelessWidget {
                 shape: BoxShape.circle,
               ),
               child: avatarIcon.isEmpty
-                  ? const Icon(Icons.person_rounded, size: 24, color: Colors.white)
+                  ? const Icon(
+                      Icons.person_rounded,
+                      size: 24,
+                      color: Colors.white,
+                    )
                   : Text(avatarIcon, style: const TextStyle(fontSize: 19)),
             ),
           ),
@@ -246,21 +280,18 @@ class _NotificationBell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('notifications')
-          .doc(user!.uid)
-          .collection('items')
-          .where('read', isEqualTo: false)
-          .snapshots(),
-      builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
-        int count = snapshot.data?.docs.length ?? 0;
+    return StreamBuilder<NotificationFeed>(
+      stream: NotificationsRepository().watchFeed(),
+      builder: (BuildContext context, AsyncSnapshot<NotificationFeed> snapshot) {
+        // The server's own `unread` count, so the badge matches the number the
+        // notifications screen shows instead of being a second guess.
+        int count = snapshot.data?.unread ?? 0;
 
         // Review mode — fall back to the sample unread items so the dot shows.
         if (count == 0 && kDemoMode) {
-          count = demoNotifications.where((DemoNotification n) => !n.read).length;
+          count = demoNotifications
+              .where((DemoNotification n) => !n.read)
+              .length;
         }
 
         return GestureDetector(
@@ -279,7 +310,11 @@ class _NotificationBell extends StatelessWidget {
                   color: kPrimaryColor,
                   shape: BoxShape.circle,
                 ),
-                child: const Icon(Icons.notifications_rounded, size: 23, color: Colors.white),
+                child: const Icon(
+                  Icons.notifications_rounded,
+                  size: 23,
+                  color: Colors.white,
+                ),
               ),
               if (count > 0)
                 Positioned(
@@ -375,7 +410,10 @@ class _PointsCard extends StatelessWidget {
                   children: [
                     _PointsChip(icon: Icons.scale_rounded, value: '$weight kg'),
                     const SizedBox(width: 10),
-                    _PointsChip(icon: Icons.local_drink_rounded, value: bottles),
+                    _PointsChip(
+                      icon: Icons.local_drink_rounded,
+                      value: bottles,
+                    ),
                   ],
                 ),
               ],
@@ -486,8 +524,9 @@ class _QuickActionCard extends StatelessWidget {
                 child: Image.asset(
                   asset,
                   fit: BoxFit.contain,
-                  errorBuilder: (BuildContext context, Object error, StackTrace? stack) =>
-                      Icon(icon, size: 34, color: tint),
+                  errorBuilder:
+                      (BuildContext context, Object error, StackTrace? stack) =>
+                          Icon(icon, size: 34, color: tint),
                 ),
               ),
             ),
@@ -512,15 +551,12 @@ class _QuickActionCard extends StatelessWidget {
   }
 }
 
-
 // ============================================================
 // RECENT ACTIVITY
 // ============================================================
 
 class _ActivityFeed extends StatelessWidget {
-  const _ActivityFeed({required this.uid});
-
-  final String uid;
+  const _ActivityFeed();
 
   /// Placeholder rows so the layout can be reviewed before real data lands.
   static final List<ActivityRow> _demo = [
@@ -540,17 +576,10 @@ class _ActivityFeed extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('users')
-          .doc(uid)
-          .collection('deposits')
-          .orderBy('timestamp', descending: true)
-          .limit(5)
-          .snapshots(),
+    return StreamBuilder<List<Deposit>>(
+      stream: ActivityRepository().watchMyDeposits(),
       builder: (context, snapshot) {
-        final List<QueryDocumentSnapshot> deposits =
-            snapshot.data?.docs ?? [];
+        final List<Deposit> deposits = snapshot.data ?? const [];
         final bool waiting =
             snapshot.connectionState == ConnectionState.waiting;
         final bool showDemo =
@@ -568,8 +597,10 @@ class _ActivityFeed extends StatelessWidget {
               )
             else if (showDemo) ...[
               Container(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: kBeige,
                   borderRadius: BorderRadius.circular(999),
@@ -600,12 +631,12 @@ class _ActivityFeed extends StatelessWidget {
             ] else if (deposits.isEmpty)
               const _EmptyActivityCard()
             else
-              ...deposits.map((QueryDocumentSnapshot doc) {
-                final Map<String, dynamic> d =
-                    (doc.data() as Map<String, dynamic>?) ??
-                        <String, dynamic>{};
-                return ActivityCard(row: ActivityRow.fromDocument(d));
-              }),
+              ...deposits
+                  .take(5)
+                  .map(
+                    (Deposit deposit) =>
+                        ActivityCard(row: ActivityRow.fromDeposit(deposit)),
+                  ),
           ],
         );
       },
@@ -627,11 +658,7 @@ class _EmptyActivityCard extends StatelessWidget {
       ),
       child: Column(
         children: [
-          const Icon(
-            Icons.recycling_rounded,
-            size: 42,
-            color: kPrimaryColor,
-          ),
+          const Icon(Icons.recycling_rounded, size: 42, color: kPrimaryColor),
           const SizedBox(height: 12),
           const Text(
             'No recycling activity yet',
@@ -645,11 +672,7 @@ class _EmptyActivityCard extends StatelessWidget {
           const Text(
             'Drop a bottle at any kiosk and your points will appear here.',
             textAlign: TextAlign.center,
-            style: TextStyle(
-              fontSize: 13,
-              height: 1.4,
-              color: kTextMuted,
-            ),
+            style: TextStyle(fontSize: 13, height: 1.4, color: kTextMuted),
           ),
         ],
       ),
@@ -937,7 +960,11 @@ class _AmbassadorTile extends StatelessWidget {
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, size: 20, color: accent.withValues(alpha: 0.5)),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 20,
+            color: accent.withValues(alpha: 0.5),
+          ),
         ],
       ),
     );

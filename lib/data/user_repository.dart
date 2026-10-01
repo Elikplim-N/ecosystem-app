@@ -1,7 +1,9 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/app_role.dart';
+import '../models/json_readers.dart';
 import '../models/member.dart';
-import '../screens/demo_data.dart';
+import '../screens/demo_data.dart' show kDemoMode, demoMembers;
+import '../services/api_client.dart';
+import '../services/polling.dart';
 
 /// Summary of one registered RFID tag.
 class RfidCard {
@@ -31,21 +33,40 @@ class RfidCard {
 
   bool get isLinked => assignedUid != null && assignedUid!.isNotEmpty;
 
-  factory RfidCard.fromDocument(DocumentSnapshot<dynamic> snap) {
-    final data = (snap.data() as Map<String, dynamic>?) ?? const {};
+  /// The API calls these `cardKind`, `assignedUserId` and `createdAt`. They are
+  /// renamed here so the rest of the app keeps the vocabulary it had.
+  factory RfidCard.fromJson(Map<String, dynamic> data) {
     return RfidCard(
-      id: snap.id,
-      tag: (data['tag'] ?? '').toString(),
+      id: readString(data['id']),
+      tag: readString(data['tag']),
       state: RfidState.fromString(data['state']),
-      cardType: (data['cardType'] ?? 'Standard').toString(),
-      assignedUid: data['assignedUid']?.toString(),
-      assignedName: data['assignedName']?.toString(),
-      registeredAt: data['registeredAt'] is Timestamp
-          ? (data['registeredAt'] as Timestamp).toDate()
-          : null,
-      notes: data['notes']?.toString(),
-      holderRole: data['holderRole']?.toString(),
+      cardType: _labelForKind(readString(data['cardKind'])),
+      assignedUid: readNullableString(data['assignedUserId']),
+      assignedName: readNullableString(data['assignedUserName']),
+      registeredAt: readDate(data['createdAt'] ?? data['registeredAt']),
+      notes: readNullableString(data['notes']),
     );
+  }
+}
+
+/// The card technology, spelled out for the registry screen.
+String _labelForKind(String kind) {
+  switch (kind) {
+    case 'mifare_1k':
+      return 'MIFARE 1K';
+    case 'mifare_ultralight':
+      return 'MIFARE Ultralight';
+    case 'em4100':
+      return 'EM4100';
+    case 'hid_prox':
+      return 'HID Prox';
+    case 'student_id':
+      return 'Student ID';
+    case 'staff_id':
+      return 'Staff ID';
+    case 'standard':
+    default:
+      return 'Standard';
   }
 }
 
@@ -87,42 +108,37 @@ enum RfidState {
 
 /// Users, roles, RFID cards and ambassador applications.
 class UserRepository {
-  UserRepository({FirebaseFirestore? firestore})
-      : _db = firestore ?? FirebaseFirestore.instance;
+  UserRepository({ApiClient? client}) : _api = client ?? api;
 
-  final FirebaseFirestore _db;
-
-  CollectionReference<Map<String, dynamic>> get _users => _db.collection('users');
-  CollectionReference<Map<String, dynamic>> get _cards => _db.collection('rfidCards');
+  final ApiClient _api;
 
   // ---------------- roles ----------------
 
+  /// Changes a member's role.
+  ///
+  /// The API is stricter than the old write: it is admin-only, it refuses to
+  /// let an admin demote themselves, and it writes an audit row. Promoting
+  /// someone to ambassador no longer also flips `ambassadorStatus` here,
+  /// because the server owns that and the review endpoint is the way in.
   Future<void> setRole(String uid, AppRole role) async {
-    await _users.doc(uid).update({
-      'role': role.id,
-      if (role == AppRole.ambassador) 'ambassadorStatus': AmbassadorStatus.approved.id,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _api.postJson('/api/users/$uid/role', body: {'role': role.id});
   }
 
   // ---------------- ambassador applications ----------------
 
+  /// Submits the signed-in member's own application.
+  ///
+  /// There is deliberately no `uid` parameter. The API reads the applicant
+  /// from the session, so the client cannot submit an application on someone
+  /// else's behalf even by mistake.
   Future<void> applyForAmbassador({
-    required String uid,
-    required String name,
     required String area,
     required String motivation,
   }) async {
-    await _users.doc(uid).update({
-      'ambassadorStatus': AmbassadorStatus.pending.id,
-      'ambassadorApplication': {
-        'name': name,
-        'area': area.trim(),
-        'motivation': motivation.trim(),
-        'submittedAt': FieldValue.serverTimestamp(),
-      },
-      'ambassadorAppliedAt': FieldValue.serverTimestamp(),
-    });
+    await _api.postJson(
+      '/api/ambassador/apply',
+      body: {'area': area.trim(), 'motivation': motivation.trim()},
+    );
   }
 
   Future<void> reviewAmbassadorApplication({
@@ -130,39 +146,42 @@ class UserRepository {
     required bool approve,
     String note = '',
   }) async {
-    final batch = _db.batch();
-    batch.update(_users.doc(uid), {
-      'ambassadorStatus':
-          (approve ? AmbassadorStatus.approved : AmbassadorStatus.rejected).id,
-      'ambassadorReviewNote': note.trim(),
-      'ambassadorReviewedAt': FieldValue.serverTimestamp(),
-      if (approve) 'role': AppRole.ambassador.id,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    await batch.commit();
+    await _api.postJson(
+      '/api/ambassador/applications/$uid/review',
+      body: {
+        'decision': approve ? 'approve' : 'reject',
+        if (note.trim().isNotEmpty) 'note': note.trim(),
+      },
+    );
   }
 
   // ---------------- RFID ----------------
 
   Stream<List<RfidCard>> watchCards() {
-    return _cards.snapshots().map((snap) {
-      final cards = snap.docs.map(RfidCard.fromDocument).toList();
-      if (cards.isEmpty && kDemoMode) return demoRfidCards();
-      return cards;
-    });
+    return pollList<RfidCard>(
+      () async {
+        final body = await _api.getJson('/api/rfid/cards', {'limit': 200});
+        final cards = _api
+            .listOf(body, 'cards')
+            .whereType<Map<String, dynamic>>()
+            .map(RfidCard.fromJson)
+            .toList();
+        if (cards.isEmpty && kDemoMode) return demoRfidCards();
+        return cards;
+      },
+      interval: PollInterval.standard,
+      seed: kDemoMode ? demoRfidCards() : const [],
+    );
   }
 
   /// Registers a card from its UID alone; everything else is derived
   /// from the member it gets linked to.
   Future<String> registerCard({required String tag}) async {
-    final doc = _cards.doc();
-    await doc.set({
-      'tag': tag.trim().toUpperCase(),
-      'state': RfidState.available.id,
-      'registeredAt': FieldValue.serverTimestamp(),
-      'registeredBy': FirebaseFirestore.instance.app.options.projectId,
-    });
-    return doc.id;
+    final body = await _api.postJson(
+      '/api/rfid/cards',
+      body: {'tag': tag.trim()},
+    );
+    return (body['card'] as Map<String, dynamic>?)?['id']?.toString() ?? '';
   }
 
   Future<void> assignCard({
@@ -171,90 +190,125 @@ class UserRepository {
     required String name,
     String role = 'user',
   }) async {
-    final snap = await _cards.doc(cardId).get();
-    if (!snap.exists) return;
-    final tag = (snap.data()?['tag'] ?? '').toString();
-
-    final batch = _db.batch();
-    batch.update(_cards.doc(cardId), {
-      'state': RfidState.linked.id,
-      'assignedUid': uid,
-      'assignedName': name,
-      'holderRole': role,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    // Mirror the link onto the user document so the profile can show it.
-    batch.set(_users.doc(uid), {'rfidUid': tag}, SetOptions(merge: true));
-    await batch.commit();
+    // The member's own copy of the tag is derived by the server from the link,
+    // so there is no second write to keep in step here.
+    await _api.patchJson('/api/rfid/cards/$cardId/link', body: {'userId': uid});
   }
 
-  Future<void> unlinkCard(String cardId) async {
-    final snap = await _cards.doc(cardId).get();
-    if (!snap.exists) return;
-    final uid = snap.data()?['assignedUid']?.toString();
-    final batch = _db.batch();
-    batch.update(_cards.doc(cardId), {
-      'state': RfidState.available.id,
-      'assignedUid': null,
-      'assignedName': null,
-      'holderRole': null,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
-    if (uid != null && uid.isNotEmpty) {
-      batch.update(_users.doc(uid), {'rfidUid': null});
-    }
-    await batch.commit();
+  Future<void> unlinkCard(String cardId) {
+    return _api.patchJson(
+      '/api/rfid/cards/$cardId/link',
+      body: {'userId': null},
+    );
   }
 
-  Future<void> setCardState(String cardId, RfidState state) async {
-    await _cards.doc(cardId).update({
-      'state': state.id,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  Future<void> setCardState(String cardId, RfidState state) {
+    return _api.postJson(
+      '/api/rfid/cards/$cardId/status',
+      body: {'state': state.id},
+    );
   }
 
-  Future<void> deleteCard(String cardId) => _cards.doc(cardId).delete();
+  Future<void> deleteCard(String cardId) =>
+      _api.deleteJson('/api/rfid/cards/$cardId');
 
   // ---------------- user records ----------------
 
   Stream<List<Member>> watchMembers() {
-    return _users.snapshots().map((snap) {
-      final members = snap.docs.map(Member.fromDocument).toList();
-      if (members.isEmpty && kDemoMode) return demoMembers();
-      members.sort((a, b) => a.displayName.compareTo(b.displayName));
-      return members;
-    });
+    return pollList<Member>(
+      () async {
+        final body = await _api.getJson('/api/users', {'limit': 200});
+        var members = _api
+            .listOf(body, 'users')
+            .whereType<Map<String, dynamic>>()
+            .map(Member.fromJson)
+            .toList();
+        if (members.isEmpty && kDemoMode) members = demoMembers();
+        members.sort((a, b) => a.displayName.compareTo(b.displayName));
+        return members;
+      },
+      interval: PollInterval.standard,
+      seed: kDemoMode ? demoMembers() : const [],
+    );
   }
 
   /// Only the people waiting on a decision.
   Stream<List<Member>> watchApplications() {
-    return _users
-        .where('ambassadorStatus', isEqualTo: AmbassadorStatus.pending.id)
-        .snapshots()
-        .map((snap) {
-          final pending = snap.docs.map(Member.fromDocument).toList();
-          if (pending.isEmpty && kDemoMode) {
-            return demoMembers()
-                .where((m) => m.isPendingApplication)
-                .toList();
-          }
-          return pending;
-        });
+    return pollList<Member>(() async {
+      final body = await _api.getJson('/api/ambassador/applications', {
+        'status': 'pending',
+      });
+      var pending = _api
+          .listOf(body, 'applications')
+          .whereType<Map<String, dynamic>>()
+          .map(Member.fromJson)
+          .toList();
+      if (pending.isEmpty && kDemoMode) {
+        pending = demoMembers().where((m) => m.isPendingApplication).toList();
+      }
+      return pending;
+    }, interval: PollInterval.standard);
   }
 
-  Future<void> updateUserFields(String uid, Map<String, dynamic> fields) async {
-    await _users.doc(uid).update({
-      ...fields,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+  /// PATCH /api/users/me. The API only accepts the fields a member may change
+  /// about themselves, so [fields] is filtered rather than passed wholesale —
+  /// sending `role` or `points` here would be rejected, and should be.
+  Future<Member> updateOwnProfile(Map<String, dynamic> fields) async {
+    const allowed = {'name', 'nickname', 'email', 'avatarIcon'};
+    final body = {
+      for (final entry in fields.entries)
+        if (allowed.contains(entry.key)) entry.key: entry.value,
+    };
+    if (body.isEmpty) throw ApiException('Nothing to update.');
+
+    final response = await _api.patchJson('/api/users/me', body: body);
+    return Member.fromJson(response['user'] as Map<String, dynamic>);
   }
 
-  /// Soft-disable so history and redemptions stay intact.
+  /// Changes your own phone number.
+  ///
+  /// Separate from [updateOwnProfile] because the server insists on the
+  /// current password for this one edit — the phone number is also the login
+  /// identifier, so moving it silently would be how someone takes over an
+  /// account.
+  Future<Member> changeOwnPhone({
+    required String phone,
+    required String currentPassword,
+  }) async {
+    final body = await _api.postJson(
+      '/api/users/me/phone',
+      body: {'phone': phone.trim(), 'currentPassword': currentPassword},
+    );
+    return Member.fromJson(body['user'] as Map<String, dynamic>);
+  }
+
+  /// Adjusts a member's point balance, which is how the admin console credits
+  /// or penalises recycling outside the normal deposit flow.
+  Future<int> adjustPoints(String uid, int delta, {String? reason}) async {
+    final body = await _api.postJson(
+      '/api/users/$uid/points',
+      body: {
+        'delta': delta,
+        if (reason != null && reason.isNotEmpty) 'reason': reason,
+      },
+    );
+    return readInt(body['points']);
+  }
+
+  /// Locks or unlocks an account.
+  ///
+  /// Revoking the sessions is the server's job and happens in the same request,
+  /// so this takes effect immediately rather than when the old token expires.
   Future<void> setUserEnabled(String uid, bool enabled) async {
-    await _users.doc(uid).update({
-      'accountDisabled': !enabled,
-      'updatedAt': FieldValue.serverTimestamp(),
-    });
+    await _api.postJson(
+      '/api/users/$uid/disable',
+      body: {'disabled': !enabled},
+    );
+  }
+
+  /// Soft-deletes an account. The reason is required by the API and is audited.
+  Future<void> deleteUser(String uid, {required String reason}) async {
+    await _api.deleteJson('/api/users/$uid', body: {'reason': reason});
   }
 }
 

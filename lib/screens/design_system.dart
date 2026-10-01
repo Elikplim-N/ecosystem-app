@@ -1,4 +1,4 @@
-﻿import 'package:flutter/material.dart';
+import 'package:flutter/material.dart';
 import 'ui_helpers.dart';
 
 // Re-exported so a screen only ever needs one import for the whole UI kit.
@@ -275,7 +275,12 @@ class SectionHeader extends StatelessWidget {
 
 /// Small uppercase label.
 class Eyebrow extends StatelessWidget {
-  const Eyebrow(this.text, {super.key, this.color = Colors.white70, this.fontSize = 11});
+  const Eyebrow(
+    this.text, {
+    super.key,
+    this.color = Colors.white70,
+    this.fontSize = 11,
+  });
 
   final String text;
   final Color color;
@@ -325,7 +330,9 @@ class StatPill extends StatelessWidget {
         color: tint,
         borderRadius: BorderRadius.circular(18),
         border: Border.all(
-          color: onDark ? Colors.white.withValues(alpha: 0.18) : accent.withValues(alpha: 0.12),
+          color: onDark
+              ? Colors.white.withValues(alpha: 0.18)
+              : accent.withValues(alpha: 0.12),
         ),
       ),
       child: Column(
@@ -351,7 +358,11 @@ class StatPill extends StatelessWidget {
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
             textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 10.5, fontWeight: FontWeight.w600, color: labelColor),
+            style: TextStyle(
+              fontSize: 10.5,
+              fontWeight: FontWeight.w600,
+              color: labelColor,
+            ),
           ),
         ],
       ),
@@ -383,7 +394,12 @@ class AppTopBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + topPadding, 20, 0),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.paddingOf(context).top + topPadding,
+        20,
+        0,
+      ),
       child: Row(
         children: [
           SizedBox(
@@ -394,13 +410,21 @@ class AppTopBar extends StatelessWidget {
           _TopBarAction(
             badgeCount: notificationCount,
             onTap: onNotifications,
-            child: const Icon(Icons.notifications_rounded, size: 23, color: Colors.white),
+            child: const Icon(
+              Icons.notifications_rounded,
+              size: 23,
+              color: Colors.white,
+            ),
           ),
           const SizedBox(width: 14),
           _TopBarAction(
             onTap: onProfile,
             child: avatarIcon.isEmpty
-                ? const Icon(Icons.person_rounded, size: 24, color: Colors.white)
+                ? const Icon(
+                    Icons.person_rounded,
+                    size: 24,
+                    color: Colors.white,
+                  )
                 : Text(avatarIcon, style: const TextStyle(fontSize: 19)),
           ),
         ],
@@ -433,7 +457,10 @@ class _TopBarAction extends StatelessWidget {
             width: 40,
             height: 40,
             alignment: Alignment.center,
-            decoration: const BoxDecoration(color: kPrimaryColor, shape: BoxShape.circle),
+            decoration: const BoxDecoration(
+              color: kPrimaryColor,
+              shape: BoxShape.circle,
+            ),
             child: child,
           ),
           if (badgeCount > 0)
@@ -576,6 +603,7 @@ class MetricCard extends StatelessWidget {
     );
   }
 }
+
 /// Circular progress ring used as a metric visualiser.
 class MiniRing extends StatelessWidget {
   const MiniRing({
@@ -613,7 +641,11 @@ class MiniRing extends StatelessWidget {
           ),
           Text(
             label,
-            style: TextStyle(fontSize: 11, fontWeight: FontWeight.w900, color: color),
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w900,
+              color: color,
+            ),
           ),
         ],
       ),
@@ -654,7 +686,9 @@ class MiniBars extends StatelessWidget {
                   child: DecoratedBox(
                     decoration: BoxDecoration(
                       color: color.withValues(alpha: 0.85),
-                      borderRadius: const BorderRadius.vertical(top: Radius.circular(3)),
+                      borderRadius: const BorderRadius.vertical(
+                        top: Radius.circular(3),
+                      ),
                     ),
                   ),
                 ),
@@ -689,7 +723,11 @@ class MiniSparkline extends StatelessWidget {
         duration: const Duration(milliseconds: 800),
         curve: Curves.easeOutCubic,
         builder: (context, animated, _) => CustomPaint(
-          painter: _SparklinePainter(values: values, color: color, progress: animated),
+          painter: _SparklinePainter(
+            values: values,
+            color: color,
+            progress: animated,
+          ),
         ),
       ),
     );
@@ -719,7 +757,9 @@ class _SparklinePainter extends CustomPainter {
       for (int i = 0; i < values.length; i++)
         Offset(
           size.width * (i / (values.length - 1)),
-          size.height - ((values[i] - min) / span * (size.height * 0.78)) - size.height * 0.11,
+          size.height -
+              ((values[i] - min) / span * (size.height * 0.78)) -
+              size.height * 0.11,
         ),
     ];
 
@@ -767,6 +807,7 @@ class _SparklinePainter extends CustomPainter {
   bool shouldRepaint(covariant _SparklinePainter oldDelegate) =>
       oldDelegate.progress != progress || oldDelegate.values != values;
 }
+
 /// Outlined role pill. Bordered rather than filled so a screen full of
 /// role pills stays calm, and the colour still reads at a glance.
 class RolePill extends StatelessWidget {
@@ -786,10 +827,10 @@ class RolePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-        padding: EdgeInsets.symmetric(
-          horizontal: dense ? 9 : 12,
-          vertical: dense ? 5 : 8,
-        ),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 9 : 12,
+        vertical: dense ? 5 : 8,
+      ),
 
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.07),
@@ -862,19 +903,31 @@ class ActionButton extends StatelessWidget {
               children: [
                 Text(
                   label,
-                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: tint),
+                  style: TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: tint,
+                  ),
                 ),
                 if (description != null) ...[
                   const SizedBox(height: 2),
                   Text(
                     description!,
-                    style: const TextStyle(fontSize: 12, color: kTextMuted, height: 1.35),
+                    style: const TextStyle(
+                      fontSize: 12,
+                      color: kTextMuted,
+                      height: 1.35,
+                    ),
                   ),
                 ],
               ],
             ),
           ),
-          Icon(Icons.chevron_right_rounded, size: 20, color: tint.withValues(alpha: 0.5)),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 20,
+            color: tint.withValues(alpha: 0.5),
+          ),
         ],
       ),
     );
@@ -901,7 +954,10 @@ class StatusChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: EdgeInsets.symmetric(horizontal: dense ? 9 : 11, vertical: dense ? 4 : 6),
+      padding: EdgeInsets.symmetric(
+        horizontal: dense ? 9 : 11,
+        vertical: dense ? 4 : 6,
+      ),
       decoration: BoxDecoration(
         color: solid ? color : color.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
@@ -911,7 +967,11 @@ class StatusChip extends StatelessWidget {
         mainAxisSize: MainAxisSize.min,
         children: [
           if (icon != null) ...[
-            Icon(icon, size: dense ? 12 : 14, color: solid ? Colors.white : color),
+            Icon(
+              icon,
+              size: dense ? 12 : 14,
+              color: solid ? Colors.white : color,
+            ),
             const SizedBox(width: 5),
           ],
           Text(
@@ -960,7 +1020,14 @@ class EmptyState extends StatelessWidget {
       ),
       child: Column(
         children: [
-          IconChip(icon: icon, tint: tint, color: accent, size: 62, iconSize: 30, radius: 22),
+          IconChip(
+            icon: icon,
+            tint: tint,
+            color: accent,
+            size: 62,
+            iconSize: 30,
+            radius: 22,
+          ),
           const SizedBox(height: 16),
           Text(
             title,
@@ -976,13 +1043,14 @@ class EmptyState extends StatelessWidget {
             Text(
               message!,
               textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 13, color: kTextMuted, height: 1.45),
+              style: const TextStyle(
+                fontSize: 13,
+                color: kTextMuted,
+                height: 1.45,
+              ),
             ),
           ],
-          if (action != null) ...[
-            const SizedBox(height: 18),
-            action!,
-          ],
+          if (action != null) ...[const SizedBox(height: 18), action!],
         ],
       ),
     );
@@ -998,7 +1066,10 @@ class LoadingView extends StatelessWidget {
     return const Center(
       child: Padding(
         padding: EdgeInsets.all(40),
-        child: CircularProgressIndicator(strokeWidth: 2.5, color: kPrimaryColor),
+        child: CircularProgressIndicator(
+          strokeWidth: 2.5,
+          color: kPrimaryColor,
+        ),
       ),
     );
   }
@@ -1026,8 +1097,15 @@ class SearchField extends StatelessWidget {
       decoration: InputDecoration(
         hintText: hint,
         hintStyle: const TextStyle(fontSize: 14, color: kTextMuted),
-        prefixIcon: const Icon(Icons.search_rounded, size: 20, color: kTextMuted),
-        prefixIconConstraints: const BoxConstraints(minWidth: 44, minHeight: 44),
+        prefixIcon: const Icon(
+          Icons.search_rounded,
+          size: 20,
+          color: kTextMuted,
+        ),
+        prefixIconConstraints: const BoxConstraints(
+          minWidth: 44,
+          minHeight: 44,
+        ),
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(vertical: 14),
@@ -1050,7 +1128,12 @@ class SearchField extends StatelessWidget {
 
 /// Horizontal single-select filter row.
 class FilterRow extends StatelessWidget {
-  const FilterRow({super.key, required this.options, required this.selected, required this.onChanged});
+  const FilterRow({
+    super.key,
+    required this.options,
+    required this.selected,
+    required this.onChanged,
+  });
 
   final List<FilterOption> options;
   final String selected;
@@ -1151,8 +1234,18 @@ Future<bool> confirmDialog(
       return AlertDialog(
         backgroundColor: Colors.white,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(22)),
-        title: Text(title, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w800, color: kTextDark)),
-        content: Text(message, style: const TextStyle(fontSize: 14, color: kTextMuted, height: 1.45)),
+        title: Text(
+          title,
+          style: const TextStyle(
+            fontSize: 18,
+            fontWeight: FontWeight.w800,
+            color: kTextDark,
+          ),
+        ),
+        content: Text(
+          message,
+          style: const TextStyle(fontSize: 14, color: kTextMuted, height: 1.45),
+        ),
         actionsPadding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
         actions: [
           TextButton(
@@ -1163,7 +1256,9 @@ Future<bool> confirmDialog(
           ElevatedButton(
             onPressed: () => Navigator.pop(context, true),
             style: ElevatedButton.styleFrom(
-              backgroundColor: destructive ? const Color(0xFFC0392B) : kPrimaryColor,
+              backgroundColor: destructive
+                  ? const Color(0xFFC0392B)
+                  : kPrimaryColor,
               padding: const EdgeInsets.symmetric(horizontal: 20),
             ),
             child: Text(confirmLabel),
@@ -1183,7 +1278,11 @@ void showToast(BuildContext context, String message) {
       SnackBar(
         content: Row(
           children: [
-            const Icon(Icons.check_circle_rounded, color: kAccentTeal, size: 18),
+            const Icon(
+              Icons.check_circle_rounded,
+              color: kAccentTeal,
+              size: 18,
+            ),
             const SizedBox(width: 10),
             Expanded(child: Text(message)),
           ],

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../data/activity_repository.dart';
 import 'activity_card.dart';
 import 'demo_data.dart';
 import 'design_system.dart';
@@ -10,34 +9,22 @@ class HistoryScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const SignedOutView();
-    }
-
     return Scaffold(
       backgroundColor: kBackground,
-      appBar: AppBar(
-        title: const Text('Recycling History'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .collection('deposits')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+      appBar: AppBar(title: const Text('Recycling History'), centerTitle: true),
+      body: StreamBuilder<List<Deposit>>(
+        stream: ActivityRepository().watchMyDeposits(),
         builder: (context, snapshot) {
           if (snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
           if (snapshot.hasError) {
-            return Center(child: Text('Error loading history: ${snapshot.error}'));
+            return Center(
+              child: Text('Error loading history: ${snapshot.error}'),
+            );
           }
 
-          final deposits = snapshot.data?.docs ?? [];
+          final deposits = snapshot.data ?? const [];
 
           if (deposits.isEmpty && !(kDemoMode)) {
             return const Center(
@@ -48,9 +35,18 @@ class HistoryScreen extends StatelessWidget {
                   children: [
                     Icon(Icons.recycling, size: 70, color: kPrimaryColor),
                     SizedBox(height: 15),
-                    Text('No recycling history yet', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
+                    Text(
+                      'No recycling history yet',
+                      style: TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
                     SizedBox(height: 8),
-                    Text('Your bottle deposits will appear here.', textAlign: TextAlign.center),
+                    Text(
+                      'Your bottle deposits will appear here.',
+                      textAlign: TextAlign.center,
+                    ),
                   ],
                 ),
               ),
@@ -96,18 +92,18 @@ class HistoryScreen extends StatelessWidget {
             );
           }
 
-          final rows = deposits
-              .map((doc) => ActivityRow.fromDocument(doc.data() as Map<String, dynamic>))
-              .toList();
+          final rows = deposits.map(ActivityRow.fromDeposit).toList();
 
-          final liveTotalKg = rows.fold<double>(
+          // Summed from the typed deposits rather than by parsing the display
+          // strings back into numbers, which is what this used to do and which
+          // broke the moment a weight was formatted differently.
+          final liveTotalKg = deposits.fold<double>(
             0,
-            (double sum, ActivityRow r) =>
-                sum + double.tryParse(r.weight.replaceAll(' kg', ''))!.clamp(0, 1e9),
+            (double sum, Deposit d) => sum + d.weightKg,
           );
-          final liveTotalPoints = rows.fold<int>(
+          final liveTotalPoints = deposits.fold<int>(
             0,
-            (int sum, ActivityRow r) => int.tryParse(r.points) ?? 0,
+            (int sum, Deposit d) => sum + d.pointsAwarded,
           );
 
           return ListView(
@@ -122,7 +118,12 @@ class HistoryScreen extends StatelessWidget {
               _WeeklyChart(
                 title: 'This week',
                 daily: _dailyWeights(
-                  rows.map((r) => (r.when, double.tryParse(r.weight.replaceAll(' kg', '')) ?? 0)),
+                  rows.map(
+                    (r) => (
+                      r.when,
+                      double.tryParse(r.weight.replaceAll(' kg', '')) ?? 0,
+                    ),
+                  ),
                 ),
               ),
               const SizedBox(height: 18),
@@ -242,8 +243,7 @@ class _WeeklyChart extends StatelessWidget {
     final today = DateTime(now.year, now.month, now.day);
     final weekday = today.weekday - 1;
     final labels = [
-      for (var i = 0; i < 7; i++)
-        _labels[(weekday - (6 - i) + 7) % 7],
+      for (var i = 0; i < 7; i++) _labels[(weekday - (6 - i) + 7) % 7],
     ];
 
     return Column(
@@ -293,7 +293,9 @@ class _WeeklyChart extends StatelessWidget {
                           child: Align(
                             alignment: Alignment.bottomCenter,
                             child: FractionallySizedBox(
-                              heightFactor: peak == 0 ? 0 : (daily[i] / peak).clamp(0.04, 1),
+                              heightFactor: peak == 0
+                                  ? 0
+                                  : (daily[i] / peak).clamp(0.04, 1),
                               child: Container(
                                 decoration: BoxDecoration(
                                   color: daily[i] > 0

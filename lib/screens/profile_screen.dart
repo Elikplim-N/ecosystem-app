@@ -1,49 +1,63 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'badge_helper.dart';
 import 'design_system.dart';
+import '../data/user_repository.dart';
 import '../models/app_role.dart';
+import '../models/member.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
 
-const _avatarOptions = ['🙂', '😎', '🌱', '♻️', '🐢', '🌍', '🦊', '🐼', '🌻', '🚀'];
+const _avatarOptions = [
+  '🙂',
+  '😎',
+  '🌱',
+  '♻️',
+  '🐢',
+  '🌍',
+  '🦊',
+  '🐼',
+  '🌻',
+  '🚀',
+];
 
 class ProfileScreen extends StatelessWidget {
   const ProfileScreen({super.key});
 
+  static final UserRepository _users = UserRepository();
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
-      return const SignedOutView();
-    }
-
     return Scaffold(
       backgroundColor: kBackground,
       extendBodyBehindAppBar: true,
-      appBar: AppBar(backgroundColor: Colors.transparent, elevation: 0, foregroundColor: Colors.white),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance.collection('users').doc(user.uid).snapshots(),
+      appBar: AppBar(
+        backgroundColor: Colors.transparent,
+        elevation: 0,
+        foregroundColor: Colors.white,
+      ),
+      body: StreamBuilder<MemberSession>(
+        stream: auth.sessions,
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData) {
             return const Center(child: CircularProgressIndicator());
           }
-          if (!snapshot.hasData || !snapshot.data!.exists) {
-            return const Center(child: Text('User data not found'));
+
+          final member = snapshot.data!.member;
+
+          if (!snapshot.data!.signedIn || member == null) {
+            return const SignedOutView();
           }
 
-          final data = snapshot.data!.data() as Map<String, dynamic>;
-          final name = data['name'] ?? 'User';
-          final nickname = data['nickname'] ?? name;
-          final avatarIcon = data['avatarIcon'] ?? '🙂';
-          final phone = data['phone'] ?? 'Not set';
-          final rfidUid = data['rfidUid'];
-          final points = (data['points'] ?? 0) as num;
-          final bottles = data['bottles'] ?? 0;
-          final weight = data['weight'] ?? 0.0;
+          final nickname = member.nickname;
+          final avatarIcon = member.avatarIcon;
+          final phone = member.phone.isEmpty ? 'Not set' : member.phone;
+          final rfidUid = member.rfidUid;
+          final points = member.points;
+          final bottles = member.bottles;
+          final weight = member.weight;
           final badge = tierForPoints(points);
           final goal = nextTierGoal(points);
-          final role = AppRole.fromString(data['role']);
+          final role = member.role;
 
           return SingleChildScrollView(
             child: Column(
@@ -55,21 +69,31 @@ class ProfileScreen extends StatelessWidget {
                   child: Column(
                     children: [
                       GestureDetector(
-                        onTap: () => _showAvatarPicker(context, user.uid, avatarIcon),
+                        onTap: () => _showAvatarPicker(context, avatarIcon),
                         child: Stack(
                           children: [
                             CircleAvatar(
                               radius: 45,
                               backgroundColor: Colors.white,
-                              child: Text(avatarIcon, style: const TextStyle(fontSize: 40)),
+                              child: Text(
+                                avatarIcon,
+                                style: const TextStyle(fontSize: 40),
+                              ),
                             ),
                             Positioned(
                               bottom: 0,
                               right: 0,
                               child: Container(
                                 padding: const EdgeInsets.all(4),
-                                decoration: const BoxDecoration(color: kPrimaryDark, shape: BoxShape.circle),
-                                child: const Icon(Icons.edit, size: 14, color: Colors.white),
+                                decoration: const BoxDecoration(
+                                  color: kPrimaryDark,
+                                  shape: BoxShape.circle,
+                                ),
+                                child: const Icon(
+                                  Icons.edit,
+                                  size: 14,
+                                  color: Colors.white,
+                                ),
                               ),
                             ),
                           ],
@@ -77,35 +101,73 @@ class ProfileScreen extends StatelessWidget {
                       ),
                       const SizedBox(height: 12),
                       GestureDetector(
-                        onTap: () => _showNicknameDialog(context, user.uid, nickname),
+                        onTap: () => _showNicknameDialog(context, nickname),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            Text(nickname, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white)),
+                            Text(
+                              nickname,
+                              style: const TextStyle(
+                                fontSize: 22,
+                                fontWeight: FontWeight.bold,
+                                color: Colors.white,
+                              ),
+                            ),
                             const SizedBox(width: 6),
-                            const Icon(Icons.edit, size: 16, color: Colors.white70),
+                            const Icon(
+                              Icons.edit,
+                              size: 16,
+                              color: Colors.white70,
+                            ),
                           ],
                         ),
                       ),
                       const SizedBox(height: 4),
-                      Text(phone, style: const TextStyle(fontSize: 14, color: Colors.white70)),
+                      Text(
+                        phone,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          color: Colors.white70,
+                        ),
+                      ),
                       const SizedBox(height: 10),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-                        decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.2),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
                         child: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (badge != null) ...[
                               Icon(badge.icon, size: 16, color: Colors.white),
                               const SizedBox(width: 6),
-                              Text(badge.label, style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                              Text(
+                                badge.label,
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
                             ] else ...[
-                              const Icon(Icons.trending_up_rounded, size: 16, color: Colors.white),
+                              const Icon(
+                                Icons.trending_up_rounded,
+                                size: 16,
+                                color: Colors.white,
+                              ),
                               const SizedBox(width: 6),
                               Text(
-                                goal == null ? 'Max tier' : '${goal.needed} pts to ${goal.tier}',
-                                style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                                goal == null
+                                    ? 'Max tier'
+                                    : '${goal.needed} pts to ${goal.tier}',
+                                style: const TextStyle(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.bold,
+                                ),
                               ),
                             ],
                           ],
@@ -194,7 +256,7 @@ class ProfileScreen extends StatelessWidget {
                             _infoRow(
                               Icons.email_rounded,
                               'Email',
-                              user.email ?? 'Not set',
+                              member.email.isEmpty ? 'Not set' : member.email,
                               iconColor: kClearBottle,
                               iconTint: kPastelPink,
                             ),
@@ -208,15 +270,22 @@ class ProfileScreen extends StatelessWidget {
                             child: SizedBox(
                               height: 54,
                               child: OutlinedButton.icon(
-                                onPressed: () => _showChangePhoneDialog(context, user.uid, phone),
+                                onPressed: () =>
+                                    _showChangePhoneDialog(context, phone),
                                 icon: const Icon(Icons.edit_outlined, size: 18),
                                 label: const Text(
                                   'CHANGE PHONE',
-                                  style: TextStyle(fontWeight: FontWeight.w700, fontSize: 12.5),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w700,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                                 style: OutlinedButton.styleFrom(
                                   foregroundColor: kPrimaryColor,
-                                  side: const BorderSide(color: kPrimaryColor, width: 1.6),
+                                  side: const BorderSide(
+                                    color: kPrimaryColor,
+                                    width: 1.6,
+                                  ),
                                   shape: RoundedRectangleBorder(
                                     borderRadius: BorderRadius.circular(16),
                                   ),
@@ -230,15 +299,23 @@ class ProfileScreen extends StatelessWidget {
                               height: 54,
                               child: ElevatedButton.icon(
                                 onPressed: () async {
-                                  await FirebaseAuth.instance.signOut();
+                                  await auth.signOut();
                                   if (context.mounted) {
-                                    Navigator.of(context).popUntil((route) => route.isFirst);
+                                    Navigator.of(
+                                      context,
+                                    ).popUntil((route) => route.isFirst);
                                   }
                                 },
-                                icon: const Icon(Icons.logout_rounded, size: 18),
+                                icon: const Icon(
+                                  Icons.logout_rounded,
+                                  size: 18,
+                                ),
                                 label: const Text(
                                   'LOG OUT',
-                                  style: TextStyle(fontWeight: FontWeight.w800, fontSize: 12.5),
+                                  style: TextStyle(
+                                    fontWeight: FontWeight.w800,
+                                    fontSize: 12.5,
+                                  ),
                                 ),
                                 style: ElevatedButton.styleFrom(
                                   backgroundColor: const Color(0xFFE5484D),
@@ -256,7 +333,10 @@ class ProfileScreen extends StatelessWidget {
                       if (role != AppRole.user) ...[
                         const SizedBox(height: 8),
                         Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 12,
+                            vertical: 6,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.white.withValues(alpha: 0.2),
                             borderRadius: BorderRadius.circular(20),
@@ -288,7 +368,32 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  static void _showAvatarPicker(BuildContext context, String uid, String current) {
+  /// Saves through the API and pushes the returned member into the session,
+  /// so the header, dashboard and admin console all update together.
+  static void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  static Future<void> _saveAndRefresh(
+    BuildContext context,
+    Future<Member> Function() save,
+  ) async {
+    try {
+      final member = await save();
+      await auth.updateCachedMember(member);
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        _toast(
+          context,
+          e.isUserFacing ? e.message : 'Could not save that change.',
+        );
+      }
+    }
+  }
+
+  static void _showAvatarPicker(BuildContext context, String current) {
     showDialog(
       context: context,
       builder: (context) {
@@ -300,12 +405,17 @@ class ProfileScreen extends StatelessWidget {
             children: _avatarOptions.map((emoji) {
               return GestureDetector(
                 onTap: () async {
-                  await FirebaseFirestore.instance.collection('users').doc(uid).update({'avatarIcon': emoji});
+                  await _saveAndRefresh(
+                    context,
+                    () => _users.updateOwnProfile({'avatarIcon': emoji}),
+                  );
                   if (context.mounted) Navigator.pop(context);
                 },
                 child: CircleAvatar(
                   radius: 26,
-                  backgroundColor: emoji == current ? kPrimaryColor.withValues(alpha: 0.3) : Colors.grey.withValues(alpha: 0.15),
+                  backgroundColor: emoji == current
+                      ? kPrimaryColor.withValues(alpha: 0.3)
+                      : Colors.grey.withValues(alpha: 0.15),
                   child: Text(emoji, style: const TextStyle(fontSize: 24)),
                 ),
               );
@@ -316,7 +426,7 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  static void _showNicknameDialog(BuildContext context, String uid, String current) {
+  static void _showNicknameDialog(BuildContext context, String current) {
     final controller = TextEditingController(text: current);
 
     showDialog(
@@ -324,14 +434,23 @@ class ProfileScreen extends StatelessWidget {
       builder: (context) {
         return AlertDialog(
           title: const Text('Edit Nickname'),
-          content: TextField(controller: controller, decoration: const InputDecoration(border: OutlineInputBorder())),
+          content: TextField(
+            controller: controller,
+            decoration: const InputDecoration(border: OutlineInputBorder()),
+          ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('CANCEL'),
+            ),
             ElevatedButton(
               onPressed: () async {
                 final newNickname = controller.text.trim();
                 if (newNickname.isNotEmpty) {
-                  await FirebaseFirestore.instance.collection('users').doc(uid).update({'nickname': newNickname});
+                  await _saveAndRefresh(
+                    context,
+                    () => _users.updateOwnProfile({'nickname': newNickname}),
+                  );
                 }
                 if (context.mounted) Navigator.pop(context);
               },
@@ -343,7 +462,10 @@ class ProfileScreen extends StatelessWidget {
     );
   }
 
-  static void _showChangePhoneDialog(BuildContext context, String uid, String currentPhone) {
+  static void _showChangePhoneDialog(
+    BuildContext context,
+    String currentPhone,
+  ) {
     final newPhoneController = TextEditingController();
     final currentPasswordController = TextEditingController();
     bool isSaving = false;
@@ -358,12 +480,18 @@ class ProfileScreen extends StatelessWidget {
               content: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text('Current: $currentPhone', style: const TextStyle(color: Colors.grey)),
+                  Text(
+                    'Current: $currentPhone',
+                    style: const TextStyle(color: Colors.grey),
+                  ),
                   const SizedBox(height: 16),
                   TextField(
                     controller: newPhoneController,
                     keyboardType: TextInputType.phone,
-                    decoration: const InputDecoration(labelText: 'New Phone Number', border: OutlineInputBorder()),
+                    decoration: const InputDecoration(
+                      labelText: 'New Phone Number',
+                      border: OutlineInputBorder(),
+                    ),
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -377,7 +505,10 @@ class ProfileScreen extends StatelessWidget {
                 ],
               ),
               actions: [
-                TextButton(onPressed: () => Navigator.pop(context), child: const Text('CANCEL')),
+                TextButton(
+                  onPressed: () => Navigator.pop(context),
+                  child: const Text('CANCEL'),
+                ),
                 ElevatedButton(
                   onPressed: isSaving
                       ? null
@@ -387,7 +518,9 @@ class ProfileScreen extends StatelessWidget {
 
                           if (newPhone.isEmpty || password.isEmpty) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(content: Text('Please fill in both fields')),
+                              const SnackBar(
+                                content: Text('Please fill in both fields'),
+                              ),
                             );
                             return;
                           }
@@ -395,41 +528,35 @@ class ProfileScreen extends StatelessWidget {
                           setDialogState(() => isSaving = true);
 
                           try {
-                            final user = FirebaseAuth.instance.currentUser!;
-
-                            final credential = EmailAuthProvider.credential(
-                              email: user.email!,
-                              password: password,
+                            // The API checks the current password before
+                            // moving the number, because it is also the login
+                            // identifier.
+                            final member = await _users.changeOwnPhone(
+                              phone: newPhone,
+                              currentPassword: password,
                             );
-                            await user.reauthenticateWithCredential(credential);
-
-                            await FirebaseFirestore.instance.collection('users').doc(uid).update({
-                              'phone': newPhone,
-                            });
+                            await auth.updateCachedMember(member);
 
                             if (context.mounted) {
                               Navigator.pop(context);
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                const SnackBar(content: Text('Phone number updated successfully.')),
+                              _toast(
+                                context,
+                                'Phone number updated successfully.',
                               );
                             }
-                          } on FirebaseAuthException catch (e) {
+                          } on ApiException catch (e) {
                             setDialogState(() => isSaving = false);
-                            String message = 'Failed to update phone number';
-                            if (e.code == 'wrong-password') {
-                              message = 'Incorrect password';
-                            }
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(message)));
-                            }
-                          } catch (e) {
-                            setDialogState(() => isSaving = false);
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
-                            }
+                            final message = e.code == 'invalid_credentials'
+                                ? 'Incorrect password'
+                                : (e.isUserFacing
+                                      ? e.message
+                                      : 'Failed to update phone number');
+                            if (context.mounted) _toast(context, message);
                           }
                         },
-                  child: isSaving ? const CircularProgressIndicator() : const Text('SAVE'),
+                  child: isSaving
+                      ? const CircularProgressIndicator()
+                      : const Text('SAVE'),
                 ),
               ],
             );
@@ -489,8 +616,9 @@ class ProfileScreen extends StatelessWidget {
               child: Image.asset(
                 asset,
                 fit: BoxFit.contain,
-                errorBuilder: (BuildContext context, Object error, StackTrace? stack) =>
-                    Icon(icon, size: 22, color: accent),
+                errorBuilder:
+                    (BuildContext context, Object error, StackTrace? stack) =>
+                        Icon(icon, size: 22, color: accent),
               ),
             ),
           ),
@@ -550,7 +678,10 @@ class ProfileScreen extends StatelessWidget {
             child: Icon(icon, size: 19, color: iconColor),
           ),
           const SizedBox(width: 14),
-          Text(label, style: const TextStyle(fontSize: 14.5, color: kTextMuted)),
+          Text(
+            label,
+            style: const TextStyle(fontSize: 14.5, color: kTextMuted),
+          ),
           const Spacer(),
           Flexible(
             child: Container(

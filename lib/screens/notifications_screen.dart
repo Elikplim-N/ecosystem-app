@@ -1,6 +1,6 @@
-﻿import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
+import '../data/activity_repository.dart';
+import '../services/api_client.dart';
 import 'demo_data.dart';
 import 'design_system.dart';
 
@@ -12,7 +12,9 @@ class NotificationsScreen extends StatelessWidget {
     if (t.contains('reward') || t.contains('redeem')) {
       return Icons.card_giftcard_rounded;
     }
-    if (t.contains('rank') || t.contains('leaderboard') || t.contains('position')) {
+    if (t.contains('rank') ||
+        t.contains('leaderboard') ||
+        t.contains('position')) {
       return Icons.leaderboard_rounded;
     }
     if (t.contains('deposit') || t.contains('point')) {
@@ -24,62 +26,79 @@ class NotificationsScreen extends StatelessWidget {
     return Icons.notifications_active_rounded;
   }
 
+  static void _toast(BuildContext context, String message) {
+    ScaffoldMessenger.of(context)
+      ..hideCurrentSnackBar()
+      ..showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  /// Marking as read is a server write, so it is deliberately allowed to fail
+  /// loudly: the next poll would otherwise quietly re-show the item as unread
+  /// and the person would think the tap did nothing.
+  static Future<void> _markRead(
+    BuildContext context,
+    NotificationsRepository repo,
+    AppNotification note,
+  ) async {
+    if (note.isRead) return;
+    try {
+      await repo.markRead(note.id);
+    } on ApiException catch (e) {
+      if (context.mounted) {
+        _toast(
+          context,
+          e.isUserFacing ? e.message : 'Could not mark that as read.',
+        );
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-
-    if (user == null) {
-      return const SignedOutView();
-    }
+    final repo = NotificationsRepository();
 
     return Scaffold(
       backgroundColor: kAdminBackground,
-      appBar: AppBar(
-        title: const Text('Notifications'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<QuerySnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('notifications')
-            .doc(user.uid)
-            .collection('items')
-            .orderBy('timestamp', descending: true)
-            .snapshots(),
+      appBar: AppBar(title: const Text('Notifications'), centerTitle: true),
+      body: StreamBuilder<NotificationFeed>(
+        stream: repo.watchFeed(),
         builder: (context, snapshot) {
-          if (snapshot.connectionState == ConnectionState.waiting) {
+          if (!snapshot.hasData &&
+              snapshot.connectionState == ConnectionState.waiting) {
             return const Center(child: CircularProgressIndicator());
           }
 
-          final items = snapshot.data?.docs ?? [];
-
-          final bool useDemo = items.isEmpty && kDemoMode;
+          final feed = snapshot.data ?? NotificationFeed.empty;
+          final bool useDemo = feed.items.isEmpty && kDemoMode;
 
           final List<_Note> notes = useDemo
               ? demoNotifications
-                  .map((DemoNotification n) => _Note(
+                    .map(
+                      (DemoNotification n) => _Note(
                         title: n.title,
                         body: n.body,
                         read: n.read,
                         when: n.when,
-                      ))
-                  .toList()
-              : items
-                  .map((QueryDocumentSnapshot doc) {
-                    final Map<String, dynamic> data =
-                        (doc.data() as Map<String, dynamic>?) ??
-                            <String, dynamic>{};
-                    final Timestamp? ts = data['timestamp'] as Timestamp?;
-                    return _Note(
-                      title: '${data['title'] ?? ''}',
-                      body: '${data['body'] ?? ''}',
-                      read: data['read'] ?? false,
-                      when: ts?.toDate(),
-                    );
-                  })
-                  .toList();
+                      ),
+                    )
+                    .toList()
+              : feed.items
+                    .map(
+                      (AppNotification n) => _Note(
+                        id: n.id,
+                        title: n.title,
+                        body: n.body,
+                        read: n.isRead,
+                        when: n.createdAt,
+                      ),
+                    )
+                    .toList();
 
-          final int unread = notes.where((_Note n) => !n.read).length;
+          // The server's unread total, so this agrees with the bell badge on
+          // the dashboard rather than recounting the visible page.
+          final int unread = useDemo
+              ? notes.where((_Note n) => !n.read).length
+              : feed.unread;
 
           if (notes.isEmpty) {
             return Center(
@@ -125,14 +144,40 @@ class NotificationsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
             children: [
-              _Header(unread: unread),
+              _Header(
+                unread: unread,
+                onMarkAllRead: unread == 0 || useDemo
+                    ? null
+                    : () async {
+                        try {
+                          await repo.markAllRead();
+                        } on ApiException catch (e) {
+                          if (context.mounted) {
+                            _toast(
+                              context,
+                              e.isUserFacing
+                                  ? e.message
+                                  : 'Could not update your notifications.',
+                            );
+                          }
+                        }
+                      },
+              ),
               const SizedBox(height: 16),
               for (final _Note note in notes)
                 _NoteCard(
                   note: note,
                   icon: _iconFor(note.title),
+                  onTap: useDemo
+                      ? null
+                      : () => _markRead(
+                          context,
+                          repo,
+                          feed.items.firstWhere(
+                            (AppNotification n) => n.id == note.id,
+                          ),
+                        ),
                 ),
-
             ],
           );
         },
@@ -147,8 +192,10 @@ class _Note {
     required this.body,
     required this.read,
     this.when,
+    this.id,
   });
 
+  final String? id;
   final String title;
   final String body;
   final bool read;
@@ -156,9 +203,10 @@ class _Note {
 }
 
 class _Header extends StatelessWidget {
-  const _Header({required this.unread});
+  const _Header({required this.unread, this.onMarkAllRead});
 
   final int unread;
+  final VoidCallback? onMarkAllRead;
 
   @override
   Widget build(BuildContext context) {
@@ -220,108 +268,119 @@ class _Header extends StatelessWidget {
               ],
             ),
           ),
+          if (onMarkAllRead != null)
+            TextButton(
+              onPressed: onMarkAllRead,
+              style: TextButton.styleFrom(
+                foregroundColor: kMetricTeal,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                minimumSize: const Size(0, 36),
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              ),
+              child: const Text(
+                'Mark all read',
+                style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+              ),
+            ),
         ],
       ),
     );
   }
 }
 
-
 class _NoteCard extends StatelessWidget {
-  const _NoteCard({
-    required this.note,
-    required this.icon,
-  });
+  const _NoteCard({required this.note, required this.icon, this.onTap});
 
   final _Note note;
   final IconData icon;
-
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.only(bottom: 11),
-      padding: const EdgeInsets.all(15),
-      decoration: BoxDecoration(
-        color: note.read ? Colors.white : kMetricTealTint,
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(
-          color: note.read
-              ? kMetricTeal.withValues(alpha: 0.14)
-              : kMetricTeal.withValues(alpha: 0.45),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: kPrimaryDark.withValues(alpha: 0.05),
-            blurRadius: 14,
-            offset: const Offset(0, 5),
-          ),
-        ],
-      ),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
+        child: Container(
+          margin: const EdgeInsets.only(bottom: 11),
+          padding: const EdgeInsets.all(15),
+          decoration: BoxDecoration(
+            color: note.read ? Colors.white : kMetricTealTint,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
               color: note.read
-                  ? kMetricTealTint.withValues(alpha: 0.5)
-                  : Colors.white.withValues(alpha: 0.9),
-              borderRadius: BorderRadius.circular(13),
+                  ? kMetricTeal.withValues(alpha: 0.14)
+                  : kMetricTeal.withValues(alpha: 0.45),
             ),
-            child: Icon(
-              icon,
-              size: 20,
-              color: note.read ? kTextMuted : kMetricTeal,
-            ),
+            boxShadow: [
+              BoxShadow(
+                color: kPrimaryDark.withValues(alpha: 0.05),
+                blurRadius: 14,
+                offset: const Offset(0, 5),
+              ),
+            ],
           ),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: note.read
+                      ? kMetricTealTint.withValues(alpha: 0.5)
+                      : Colors.white.withValues(alpha: 0.9),
+                  borderRadius: BorderRadius.circular(13),
+                ),
+                child: Icon(
+                  icon,
+                  size: 20,
+                  color: note.read ? kTextMuted : kMetricTeal,
+                ),
+              ),
 
-          const SizedBox(width: 13),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
+              const SizedBox(width: 13),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Expanded(
-                      child: Text(
-                        note.title,
-                        style: TextStyle(
-                          fontSize: 14.5,
-                          fontWeight: FontWeight.w800,
-                          color: note.read ? kTextMuted : kTextDark,
-                        ),
+                    Text(
+                      note.title,
+                      style: TextStyle(
+                        fontSize: 14.5,
+                        fontWeight: FontWeight.w800,
+                        color: note.read ? kTextMuted : kTextDark,
                       ),
                     ),
+                    const SizedBox(height: 5),
+                    Text(
+                      note.body,
+                      style: TextStyle(
+                        fontSize: 13,
+                        height: 1.35,
+                        color: note.read ? kTextMuted : kTextDark,
+                      ),
+                    ),
+                    if (note.when != null) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        '${note.when!.day}/${note.when!.month}/${note.when!.year}  •  '
+                        '${note.when!.hour.toString().padLeft(2, '0')}:'
+                        '${note.when!.minute.toString().padLeft(2, '0')}',
+                        style: const TextStyle(
+                          fontSize: 11,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.2,
+                          color: kTextMuted,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
-                const SizedBox(height: 5),
-                Text(
-                  note.body,
-                  style: TextStyle(
-                    fontSize: 13,
-                    height: 1.35,
-                    color: note.read ? kTextMuted : kTextDark,
-                  ),
-                ),
-                if (note.when != null) ...[
-                  const SizedBox(height: 8),
-                  Text(
-                    '${note.when!.day}/${note.when!.month}/${note.when!.year}  •  '
-                    '${note.when!.hour.toString().padLeft(2, '0')}:'
-                    '${note.when!.minute.toString().padLeft(2, '0')}',
-                    style: const TextStyle(
-                      fontSize: 11,
-                      fontWeight: FontWeight.w700,
-                      letterSpacing: 0.2,
-                      color: kTextMuted,
-                    ),
-                  ),
-                ],
-              ],
-            ),
+              ),
+            ],
           ),
-        ],
+        ),
       ),
     );
   }

@@ -61,12 +61,24 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
             const Expanded(
               child: Text(
                 'Bin network',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800, color: kTextDark),
+                style: TextStyle(
+                  fontSize: 17,
+                  fontWeight: FontWeight.w800,
+                  color: kTextDark,
+                ),
               ),
             ),
-            _ScopePill(label: 'Ghana', selected: !_accraView, onTap: _focusGhana),
+            _ScopePill(
+              label: 'Ghana',
+              selected: !_accraView,
+              onTap: _focusGhana,
+            ),
             const SizedBox(width: 6),
-            _ScopePill(label: 'Accra', selected: _accraView, onTap: _focusAccra),
+            _ScopePill(
+              label: 'Accra',
+              selected: _accraView,
+              onTap: _focusAccra,
+            ),
           ],
         ),
         const SizedBox(height: 12),
@@ -86,12 +98,15 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
                         minZoom: 4.5,
                         maxZoom: 17,
                         backgroundColor: const Color(0xFFE7E3DA),
-                        interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
+                        interactionOptions: const InteractionOptions(
+                          flags: InteractiveFlag.all,
+                        ),
                         onTap: (_, _) => setState(() => _active = null),
                       ),
                       children: [
                         TileLayer(
-                          urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                          urlTemplate:
+                              'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                           userAgentPackageName: 'com.boame.ecosystem',
                           maxNativeZoom: 19,
                         ),
@@ -108,7 +123,9 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
                                   onTap: () => _select(bin),
                                   onHover: (hovering) {
                                     if (hovering) {
-                                      if (_active?.id != bin.id) setState(() => _active = bin);
+                                      if (_active?.id != bin.id) {
+                                        setState(() => _active = bin);
+                                      }
                                     }
                                   },
                                 ),
@@ -122,7 +139,10 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
                         left: 12,
                         top: 12,
                         right: 12,
-                        child: _BinInfoCard(bin: _active!, onClose: () => setState(() => _active = null)),
+                        child: _BinInfoCard(
+                          bin: _active!,
+                          onClose: () => setState(() => _active = null),
+                        ),
                       ),
                     Positioned(
                       right: 8,
@@ -133,7 +153,10 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
                           borderRadius: BorderRadius.circular(6),
                         ),
                         child: const Padding(
-                          padding: EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                          padding: EdgeInsets.symmetric(
+                            horizontal: 6,
+                            vertical: 2,
+                          ),
                           child: Text(
                             '(c) OpenStreetMap',
                             style: TextStyle(fontSize: 9.5, color: kTextMuted),
@@ -155,7 +178,11 @@ class _GhanaBinMapState extends State<GhanaBinMap> {
 }
 
 class _ScopePill extends StatelessWidget {
-  const _ScopePill({required this.label, required this.selected, required this.onTap});
+  const _ScopePill({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   final String label;
   final bool selected;
@@ -238,7 +265,11 @@ class _BinPin extends StatelessWidget {
               ),
             ],
           ),
-          child: Icon(Icons.delete_outline_rounded, size: active ? 19 : 15, color: Colors.white),
+          child: Icon(
+            Icons.delete_outline_rounded,
+            size: active ? 19 : 15,
+            color: Colors.white,
+          ),
         ),
       ),
     );
@@ -286,7 +317,11 @@ class _BinInfoCard extends StatelessWidget {
                   bin.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(fontSize: 14, fontWeight: FontWeight.w800, color: kTextDark),
+                  style: const TextStyle(
+                    fontSize: 14,
+                    fontWeight: FontWeight.w800,
+                    color: kTextDark,
+                  ),
                 ),
               ),
               GestureDetector(
@@ -366,7 +401,11 @@ class _MapLegend extends StatelessWidget {
               const SizedBox(width: 6),
               Text(
                 label,
-                style: const TextStyle(fontSize: 11.5, fontWeight: FontWeight.w600, color: kTextMuted),
+                style: const TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: kTextMuted,
+                ),
               ),
             ],
           ),

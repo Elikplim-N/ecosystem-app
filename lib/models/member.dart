@@ -1,8 +1,12 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart' show Color;
 import '../models/app_role.dart';
+import 'json_readers.dart';
 
-/// Read-only view over a `users/{uid}` document.
+/// Read-only view over a member, as returned by the REST API.
+///
+/// The id is the `users.id` uuid, which is also the JWT subject — it plays the
+/// role Firebase's uid used to. Note it is a uuid string, not a Firestore
+/// document id, so nothing should try to parse it as anything else.
 class Member {
   const Member({
     required this.uid,
@@ -21,6 +25,7 @@ class Member {
     this.area,
     this.motivation,
     this.appliedAt,
+    this.reviewNote,
     this.createdAt,
     this.raw = const {},
   });
@@ -43,10 +48,14 @@ class Member {
   final String? area;
   final String? motivation;
   final DateTime? appliedAt;
+
+  /// Why the last review decision went the way it did, shown to the applicant.
+  final String? reviewNote;
   final DateTime? createdAt;
   final Map<String, dynamic> raw;
 
-  String get displayName => name.trim().isEmpty ? 'Unnamed member' : name.trim();
+  String get displayName =>
+      name.trim().isEmpty ? 'Unnamed member' : name.trim();
 
   String get subtitle {
     final parts = <String>[];
@@ -54,47 +63,113 @@ class Member {
     if (rfidUid != null && rfidUid!.trim().isNotEmpty) {
       parts.add('RFID $rfidUid');
     }
-    if (parts.isEmpty) parts.add(email.trim().isEmpty ? 'No contact details' : email.trim());
+    if (parts.isEmpty) {
+      parts.add(email.trim().isEmpty ? 'No contact details' : email.trim());
+    }
     return parts.join('  •  ');
   }
 
-  bool get isPendingApplication =>
-      ambassadorStatus == AmbassadorStatus.pending;
+  bool get isPendingApplication => ambassadorStatus == AmbassadorStatus.pending;
 
   bool get hasApplication =>
       ambassadorStatus == AmbassadorStatus.pending ||
       ambassadorStatus == AmbassadorStatus.rejected;
 
-  factory Member.fromDocument(DocumentSnapshot<dynamic> snap) {
-    final data = (snap.data() as Map<String, dynamic>?) ?? const {};
-    final application = data['ambassadorApplication'] as Map<String, dynamic>?;
-
-    int readInt(Object? v) => v is num ? v.toInt() : int.tryParse('$v') ?? 0;
-    double readDouble(Object? v) => v is num ? v.toDouble() : double.tryParse('$v') ?? 0;
+  /// Builds from the API's `publicUser`/`present` shape.
+  ///
+  /// `accountState` is the API's enum ('active' | 'disabled' | 'deleted')
+  /// rather than the old `accountDisabled` boolean.
+  factory Member.fromJson(Map<String, dynamic> data) {
+    // A member with no nickname is shown by their real name rather than blank.
+    final name = readString(data['name']);
+    final nickname = readString(data['nickname']).trim();
 
     return Member(
-      uid: snap.id,
-      name: (data['name'] ?? '').toString(),
-      nickname: (data['nickname'] ?? data['name'] ?? '').toString(),
-      email: (data['email'] ?? '').toString(),
-      phone: (data['phone'] ?? '').toString(),
+      uid: readString(data['id']),
+      name: name,
+      nickname: nickname.isEmpty ? name : nickname,
+      email: readString(data['email']),
+      phone: readString(data['phone']),
       role: AppRole.fromString(data['role']),
-      ambassadorStatus: AmbassadorStatus.fromString(data['ambassadorStatus']),
+      ambassadorStatus: AmbassadorStatus.fromString(data['ambassadorState']),
       points: readInt(data['points']),
       bottles: readInt(data['bottles']),
-      weight: readDouble(data['weight']),
-      avatarIcon: (data['avatarIcon'] ?? '🙂').toString(),
-      accountDisabled: data['accountDisabled'] == true,
-      rfidUid: data['rfidUid']?.toString(),
-      area: application?['area']?.toString(),
-      motivation: application?['motivation']?.toString(),
-      appliedAt: data['ambassadorAppliedAt'] is Timestamp
-          ? (data['ambassadorAppliedAt'] as Timestamp).toDate()
-          : null,
-      createdAt: data['createdAt'] is Timestamp
-          ? (data['createdAt'] as Timestamp).toDate()
-          : null,
+      // The API sends kilograms; the UI has always spoken kilograms.
+      weight: readDouble(data['weightKg'] ?? data['weight']),
+      avatarIcon: readString(data['avatarIcon'], '🙂'),
+      accountDisabled:
+          data['accountState'] == 'disabled' || data['accountDisabled'] == true,
+      rfidUid: readNullableString(data['rfidUid']),
+      area: readNullableString(data['ambassadorArea']),
+      motivation: readNullableString(data['ambassadorMotivation']),
+      appliedAt: readDate(data['ambassadorAppliedAt'] ?? data['appliedAt']),
+      reviewNote: readNullableString(data['ambassadorReviewNote']),
+      createdAt: readDate(data['createdAt']),
       raw: data,
+    );
+  }
+
+  /// Only the fields the app owns, for the local cache and for PATCH bodies.
+  ///
+  /// Deliberately not the whole API payload: the cache should not hold the
+  /// password-related or internal fields the API could start adding later.
+  Map<String, dynamic> toJson() {
+    return {
+      'id': uid,
+      'name': name,
+      'nickname': nickname,
+      'email': email,
+      'phone': phone,
+      'role': role.id,
+      'ambassadorState': ambassadorStatus.id,
+      'points': points,
+      'bottles': bottles,
+      'weightKg': weight,
+      'avatarIcon': avatarIcon,
+      'accountState': accountDisabled ? 'disabled' : 'active',
+      if (rfidUid != null) 'rfidUid': rfidUid,
+      if (area != null) 'ambassadorArea': area,
+      if (motivation != null) 'ambassadorMotivation': motivation,
+      if (appliedAt != null)
+        'ambassadorAppliedAt': appliedAt!.toIso8601String(),
+      if (reviewNote != null) 'ambassadorReviewNote': reviewNote,
+      if (createdAt != null) 'createdAt': createdAt!.toIso8601String(),
+    };
+  }
+
+  Member copyWith({
+    String? name,
+    String? nickname,
+    String? email,
+    String? phone,
+    String? avatarIcon,
+    AppRole? role,
+    AmbassadorStatus? ambassadorStatus,
+    int? points,
+    int? bottles,
+    double? weight,
+    String? rfidUid,
+  }) {
+    return Member(
+      uid: uid,
+      name: name ?? this.name,
+      nickname: nickname ?? this.nickname,
+      email: email ?? this.email,
+      phone: phone ?? this.phone,
+      role: role ?? this.role,
+      ambassadorStatus: ambassadorStatus ?? this.ambassadorStatus,
+      points: points ?? this.points,
+      bottles: bottles ?? this.bottles,
+      weight: weight ?? this.weight,
+      avatarIcon: avatarIcon ?? this.avatarIcon,
+      accountDisabled: accountDisabled,
+      rfidUid: rfidUid ?? this.rfidUid,
+      area: area,
+      motivation: motivation,
+      appliedAt: appliedAt,
+      reviewNote: reviewNote,
+      createdAt: createdAt,
+      raw: raw,
     );
   }
 

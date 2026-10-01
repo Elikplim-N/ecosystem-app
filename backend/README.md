@@ -84,6 +84,8 @@ node scripts/smoke-test.js
 | RFID | `/api/rfid` | admin |
 | Ambassador | `/api/ambassador` | member apply, admin review |
 | Rewards | `/api/rewards` | member redeem, admin review |
+| Notifications | `/api/notifications` | member read, admin send |
+| Contact | `/api/contact` | none (works signed out) |
 | Admin | `/api/admin` | admin |
 | Devices | `/api/devices` | sensor token |
 
@@ -95,13 +97,19 @@ Full list: `node scripts/list-routes.js`.
 POST /api/auth/register     name, phone, password
 POST /api/auth/login        identifier (phone or email), password
 POST /api/auth/refresh      rotates the refresh token
+POST /api/auth/forgot-password   identifier -> single-use reset token
+POST /api/auth/reset-password    token, password -> revokes all sessions
 GET  /api/bins              ?state=&mine=&search=
 POST /api/bins              admin or ambassador
 POST /api/bins/:id/status   fillPercent -> state is derived, not accepted
-POST /api/bins/:id/collect  records weight; resets fill
+POST /api/bins/:id/collect  records weight; resets both compartments
 POST /api/rfid/cards        tag normalised; duplicates rejected by the DB
+GET  /api/rewards/admin     full catalogue, including inactive
+POST /api/rewards/admin     add a reward
 POST /api/ambassador/apply  area, motivation
 POST /api/ambassador/applications/:id/review   approve | reject
+GET  /api/notifications     the member's own feed and unread count
+POST /api/contact           support message; works signed out
 POST /api/devices/report    sensorId, fillPercent
 ```
 
@@ -148,19 +156,25 @@ names and query fragments; those are logged server-side and never returned.
 
 ## Known gaps
 
-1. **Password reset is not implemented.** `auth_tokens` has the table and the
-   purpose enum, but there is no email/SMS provider wired up, so there is
-   nowhere to send a code. This is the last blocking piece of auth and it
-   needs a provider decision.
+1. **Password reset has no delivery provider.** The token lifecycle is
+   implemented end to end — `POST /api/auth/forgot-password` issues a
+   single-use token stored hashed in `auth_tokens`, and
+   `POST /api/auth/reset-password` consumes it, sets the new hash and revokes
+   every existing session in one transaction. What is missing is the last hop:
+   `src/services/mailer.js` logs the message instead of sending it, so the flow
+   does not work in production. Wiring a provider is a change to that one file;
+   until then it logs a loud error rather than failing quietly.
 
 2. **Sensor auth is currently just the sensor id.** `POST /api/devices/report`
    checks `Authorization: Bearer <sensorId>`, which is weak. Replace with a
    per-sensor secret before the hardware ships. The comment in
    `src/routes/devices.routes.js` marks this.
 
-3. **There is no migration runner.** `schema.sql` is applied directly. Once the
-   schema starts changing after launch, add something like node-pg-migrate or
-   Flyway — do not keep re-running schema.sql.
+3. **Migrations are hand-applied.** `schema.sql` is the source of truth for a
+   new database, and `database/migrations/` holds the incremental `ALTER`s for
+   one that already exists. There is no runner that tracks which have been
+   applied — apply them in order by hand, or adopt node-pg-migrate or Flyway
+   before this list gets long.
 
 4. **No automated test suite yet.** `scripts/smoke-test.js` covers the critical
    paths end to end; it should become `node:test` unit tests as it grows.
@@ -172,6 +186,11 @@ names and query fragments; those are logged server-side and never returned.
 6. **`users` is not yet soft-delete cleaned up.** `account_state = 'deleted'`
    works and access is revoked, but no scheduled job anonymises the personal
    data as promised to the user.
+
+7. **Notification read state is per row, not per recipient.** A broadcast is one
+   row shared by a whole role, so marking it read is global rather than
+   personal. The unread badge counts personal rows only. A join table would fix
+   it properly.
 
 ## Deploying to the cloud server
 

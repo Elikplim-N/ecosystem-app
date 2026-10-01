@@ -54,10 +54,9 @@ void main() {
     expect(find.text('Network administrators'), findsOneWidget);
   });
 
-  testWidgets('data service failure replaces the splash animation',
-      (tester) async {
+  testWidgets('startup failure replaces the splash animation', (tester) async {
     await tester.pumpWidget(
-      const MaterialApp(home: SplashScreen(firebaseError: 'offline')),
+      const MaterialApp(home: SplashScreen(startupError: 'offline')),
     );
     await tester.pump();
 

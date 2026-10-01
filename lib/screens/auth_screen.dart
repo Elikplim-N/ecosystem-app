@@ -1,9 +1,9 @@
 import 'dart:math' as math;
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
 import 'auth_gate.dart';
 import 'forgot_password_screen.dart';
 import 'ui_helpers.dart';
@@ -55,6 +55,18 @@ class _AuthScreenState extends State<AuthScreen> {
       ..showSnackBar(SnackBar(content: Text(message)));
   }
 
+  /// Turns an API failure into something a person can act on.
+  ///
+  /// The backend already writes plain, user-facing sentences for validation
+  /// and conflicts, so the default case shows its message. Anything else is a
+  /// bug or a network problem and is labelled as such rather than shown raw.
+  String _describeError(ApiException e) {
+    if (e.isUserFacing) return e.message;
+    if (e.isUnauthorised) return 'Phone number or password is incorrect';
+    if (e.code == 'conflict') return e.message;
+    return 'Something went wrong. Please try again.';
+  }
+
   void _leaveLoading() {
     if (mounted) setState(() => isLoading = false);
   }
@@ -68,9 +80,9 @@ class _AuthScreenState extends State<AuthScreen> {
   }
 
   Future<void> _login() async {
-    final String phone = phoneController.text.trim();
+    final String identifier = phoneController.text.trim();
 
-    if (phone.isEmpty || passwordController.text.isEmpty) {
+    if (identifier.isEmpty || passwordController.text.isEmpty) {
       _toast('Please enter your phone number and password');
       return;
     }
@@ -78,44 +90,20 @@ class _AuthScreenState extends State<AuthScreen> {
     setState(() => isLoading = true);
 
     try {
-      final query = await FirebaseFirestore.instance
-          .collection('users')
-          .where('phone', isEqualTo: phone)
-          .limit(1)
-          .get();
-
-      if (query.docs.isEmpty) {
-        if (!mounted) return;
-        _toast('No account found with that phone number');
-        setState(() => isLoading = false);
-        return;
-      }
-
-      final userData = query.docs.first.data();
-      // Fallback for accounts created before real emails were required.
-      final email = userData['email'] ?? '$phone@ecosytem.app';
-
-      await FirebaseAuth.instance.signInWithEmailAndPassword(
-        email: email,
+      // One call. The old flow had to look the phone number up in Firestore
+      // first to find an email, then hand that email to Firebase Auth — which
+      // both leaked whether an account existed and broke for the accounts
+      // created before real emails were required. The API does it in one step.
+      await auth.signIn(
+        identifier: identifier,
         password: passwordController.text,
       );
 
       if (!mounted) return;
       _goHome();
-    } on FirebaseAuthException catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
-      switch (e.code) {
-        case 'user-not-found':
-        case 'invalid-credential':
-          _toast('Phone number or password is incorrect');
-        case 'wrong-password':
-          _toast('Incorrect password');
-        default:
-          _toast('Firebase error: ${e.code}');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _toast('Error: $e');
+      _toast(_describeError(e));
     } finally {
       _leaveLoading();
     }
@@ -141,55 +129,30 @@ class _AuthScreenState extends State<AuthScreen> {
       return;
     }
 
-    if (passwordController.text.length < 6) {
-      _toast('Password must be at least 6 characters');
+    if (passwordController.text.length < 8) {
+      _toast('Password must be at least 8 characters');
       return;
     }
 
     setState(() => isLoading = true);
 
     try {
-      final String email = emailController.text.trim();
-
-      await FirebaseAuth.instance.createUserWithEmailAndPassword(
-        email: email,
+      // The server creates the account and the session together, and derives
+      // nickname and avatar defaults itself. The client used to write a second
+      // `users` document after Firebase Auth returned a uid, which could leave
+      // an account with a login but no profile if that second write failed.
+      await auth.register(
+        name: nameController.text.trim(),
+        phone: phoneController.text.trim(),
         password: passwordController.text,
+        email: emailController.text.trim(),
       );
-
-      final user = FirebaseAuth.instance.currentUser;
-
-      if (user != null) {
-        await FirebaseFirestore.instance.collection('users').doc(user.uid).set({
-          'name': nameController.text.trim(),
-          'phone': phoneController.text.trim(),
-          'email': email,
-          'nickname': nameController.text.trim(),
-          'avatarIcon': '🙂',
-          'role': 'user',
-          'points': 0,
-          'bottles': 0,
-          'weight': 0.0,
-          'createdAt': FieldValue.serverTimestamp(),
-        });
-      }
 
       if (!mounted) return;
       _goHome();
-    } on FirebaseAuthException catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
-      switch (e.code) {
-        case 'email-already-in-use':
-          _toast('This email is already registered');
-        case 'weak-password':
-          _toast('The password is too weak');
-        case 'invalid-email':
-          _toast('Invalid email address');
-        default:
-          _toast('Firebase error: ${e.code}');
-      }
-    } catch (e) {
-      if (!mounted) return;
-      _toast('Error: $e');
+      _toast(_describeError(e));
     } finally {
       _leaveLoading();
     }
@@ -214,8 +177,11 @@ class _AuthScreenState extends State<AuthScreen> {
             'Password',
             Icons.lock_outline,
             suffixIcon: IconButton(
-              icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => obscurePassword = !obscurePassword),
+              icon: Icon(
+                obscurePassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () =>
+                  setState(() => obscurePassword = !obscurePassword),
             ),
           ),
         ),
@@ -235,11 +201,7 @@ class _AuthScreenState extends State<AuthScreen> {
           ),
         ),
         const SizedBox(height: 8),
-        PrimaryButton(
-          label: 'Login',
-          isLoading: isLoading,
-          onPressed: _login,
-        ),
+        PrimaryButton(label: 'Login', isLoading: isLoading, onPressed: _login),
       ],
     );
   }
@@ -277,8 +239,11 @@ class _AuthScreenState extends State<AuthScreen> {
             'Password',
             Icons.lock_outline,
             suffixIcon: IconButton(
-              icon: Icon(obscurePassword ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => obscurePassword = !obscurePassword),
+              icon: Icon(
+                obscurePassword ? Icons.visibility_off : Icons.visibility,
+              ),
+              onPressed: () =>
+                  setState(() => obscurePassword = !obscurePassword),
             ),
           ),
         ),
@@ -290,8 +255,14 @@ class _AuthScreenState extends State<AuthScreen> {
             'Confirm Password',
             Icons.lock_reset_outlined,
             suffixIcon: IconButton(
-              icon: Icon(obscureConfirmPassword ? Icons.visibility_off : Icons.visibility),
-              onPressed: () => setState(() => obscureConfirmPassword = !obscureConfirmPassword),
+              icon: Icon(
+                obscureConfirmPassword
+                    ? Icons.visibility_off
+                    : Icons.visibility,
+              ),
+              onPressed: () => setState(
+                () => obscureConfirmPassword = !obscureConfirmPassword,
+              ),
             ),
           ),
         ),
@@ -313,8 +284,10 @@ class _AuthScreenState extends State<AuthScreen> {
     // Everything is measured against the height left after the keyboard,
     // so topHeight + sheetHeight always fills the body exactly.
     final double bodyHeight = screenHeight - keyboard;
-    final double sheetHeight =
-        math.min(bodyHeight * 0.63, math.max(340.0, bodyHeight - 140.0));
+    final double sheetHeight = math.min(
+      bodyHeight * 0.63,
+      math.max(340.0, bodyHeight - 140.0),
+    );
     final double topHeight = bodyHeight - sheetHeight;
 
     final bool isLogin = mode == AuthMode.login;
@@ -330,7 +303,10 @@ class _AuthScreenState extends State<AuthScreen> {
           child: Column(
             children: [
               SizedBox(height: topHeight, child: _buildTopArea(context)),
-              SizedBox(height: sheetHeight, child: _buildSheet(context, isLogin)),
+              SizedBox(
+                height: sheetHeight,
+                child: _buildSheet(context, isLogin),
+              ),
             ],
           ),
         ),
@@ -340,7 +316,12 @@ class _AuthScreenState extends State<AuthScreen> {
 
   Widget _buildTopArea(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 8, 20, 0),
+      padding: EdgeInsets.fromLTRB(
+        20,
+        MediaQuery.paddingOf(context).top + 8,
+        20,
+        0,
+      ),
       child: SingleChildScrollView(
         physics: const ClampingScrollPhysics(),
         child: Column(
@@ -422,22 +403,24 @@ class _AuthScreenState extends State<AuthScreen> {
               const SizedBox(height: 20),
               Expanded(
                 child: SingleChildScrollView(
-                  keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+                  keyboardDismissBehavior:
+                      ScrollViewKeyboardDismissBehavior.onDrag,
                   child: AnimatedSwitcher(
                     duration: const Duration(milliseconds: 260),
                     switchInCurve: Curves.easeOut,
-                    transitionBuilder: (Widget child, Animation<double> animation) {
-                      return FadeTransition(
-                        opacity: animation,
-                        child: SlideTransition(
-                          position: Tween<Offset>(
-                            begin: const Offset(0, 0.06),
-                            end: Offset.zero,
-                          ).animate(animation),
-                          child: child,
-                        ),
-                      );
-                    },
+                    transitionBuilder:
+                        (Widget child, Animation<double> animation) {
+                          return FadeTransition(
+                            opacity: animation,
+                            child: SlideTransition(
+                              position: Tween<Offset>(
+                                begin: const Offset(0, 0.06),
+                                end: Offset.zero,
+                              ).animate(animation),
+                              child: child,
+                            ),
+                          );
+                        },
                     child: isLogin ? _buildLoginForm() : _buildSignUpForm(),
                   ),
                 ),
@@ -446,7 +429,11 @@ class _AuthScreenState extends State<AuthScreen> {
               Center(
                 child: Text.rich(
                   TextSpan(
-                    style: const TextStyle(color: kTextMuted, fontSize: 12.5, height: 1.4),
+                    style: const TextStyle(
+                      color: kTextMuted,
+                      fontSize: 12.5,
+                      height: 1.4,
+                    ),
                     children: [
                       const TextSpan(text: 'By continuing you agree to our\n'),
                       TextSpan(
