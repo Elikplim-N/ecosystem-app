@@ -2,19 +2,32 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
+import 'screens/ui_helpers.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  // Firebase is being replaced by the Node backend, but the SDK still
+  // backs the current repositories. If it cannot load (offline review,
+  // blocked CDN) the app must still boot and say so, rather than
+  // leaving a blank screen behind an unhandled await.
+  Object? firebaseError;
+  try {
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
+  } catch (e) {
+    firebaseError = e;
+  }
 
-  runApp(const EcosystemApp());
+  runApp(EcosystemApp(firebaseError: firebaseError));
 }
 
 class EcosystemApp extends StatelessWidget {
-  const EcosystemApp({super.key});
+  const EcosystemApp({super.key, this.firebaseError});
+
+  /// Set when Firebase failed to initialise; the splash screen shows it.
+  final Object? firebaseError;
 
   @override
   Widget build(BuildContext context) {
@@ -25,36 +38,49 @@ class EcosystemApp extends StatelessWidget {
         useMaterial3: true,
         fontFamily: 'Poppins',
         colorScheme: ColorScheme.fromSeed(
-          seedColor: const Color(0xFF00C896),
+          seedColor: kPrimaryColor,
           brightness: Brightness.light,
         ),
-        scaffoldBackgroundColor: const Color(0xFFF4F7F6),
+        scaffoldBackgroundColor: kBackground,
         appBarTheme: const AppBarTheme(
           backgroundColor: Colors.transparent,
           elevation: 0,
-          foregroundColor: Color(0xFF1B4332),
+          foregroundColor: kTextDark,
         ),
         elevatedButtonTheme: ElevatedButtonThemeData(
           style: ElevatedButton.styleFrom(
-            backgroundColor: const Color(0xFF00C896),
+            backgroundColor: kPrimaryColor,
             foregroundColor: Colors.white,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
-            ),
             elevation: 0,
+            padding: const EdgeInsets.symmetric(horizontal: 24),
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(999),
+            ),
           ),
         ),
         outlinedButtonTheme: OutlinedButtonThemeData(
           style: OutlinedButton.styleFrom(
-            foregroundColor: const Color(0xFF1B4332),
-            side: const BorderSide(color: Color(0xFF00C896), width: 1.5),
+            foregroundColor: kPrimaryColor,
+            side: const BorderSide(color: kPrimaryColor, width: 1.5),
+            padding: const EdgeInsets.symmetric(horizontal: 24),
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(16),
+              borderRadius: BorderRadius.circular(999),
             ),
           ),
         ),
+        textButtonTheme: TextButtonThemeData(
+          style: TextButton.styleFrom(foregroundColor: kPrimaryColor),
+        ),
+        snackBarTheme: SnackBarThemeData(
+          backgroundColor: kPrimaryDark,
+          contentTextStyle: const TextStyle(color: Colors.white),
+          behavior: SnackBarBehavior.floating,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(14),
+          ),
+        ),
       ),
-      home: const SplashScreen(),
+      home: SplashScreen(firebaseError: firebaseError),
     );
   }
 }

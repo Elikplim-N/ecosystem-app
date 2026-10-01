@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+﻿import 'package:flutter/material.dart';
 import 'dart:async';
 
 // ============================================================
@@ -176,7 +176,7 @@ class _KioskMockupScreenState extends State<KioskMockupScreen> {
             ),
             const SizedBox(height: 30),
             const Text(
-              'ECOSYSTEM',
+              'BOAME',
               style: TextStyle(
                 fontSize: 40,
                 fontWeight: FontWeight.bold,
@@ -295,7 +295,7 @@ class _KioskMockupScreenState extends State<KioskMockupScreen> {
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.06),
+              color: Colors.black.withValues(alpha: 0.06),
               blurRadius: 14,
               offset: const Offset(0, 6),
             ),
@@ -306,7 +306,7 @@ class _KioskMockupScreenState extends State<KioskMockupScreen> {
             Container(
               padding: const EdgeInsets.all(16),
               decoration: BoxDecoration(
-                color: color.withOpacity(0.12),
+                color: color.withValues(alpha: 0.12),
                 shape: BoxShape.circle,
               ),
               child: Icon(icon, size: 32, color: color),

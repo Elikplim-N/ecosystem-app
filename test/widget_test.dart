@@ -1,30 +1,67 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
-
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:ecosytem/main.dart';
+import 'package:ecosytem/screens/splash_screen.dart';
 
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const EcosystemApp());
+  // The splash pulses forever by design, so the tests advance time
+  // explicitly rather than using pumpAndSettle.
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+  testWidgets('splash shows the BoaMe wordmark', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
+    await tester.pump(const Duration(milliseconds: 400));
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
+    expect(find.text('BoaMe'), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 2500));
+    await tester.pump();
+  });
+
+  testWidgets('splash renders the brand logo', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
+    await tester.pump(const Duration(milliseconds: 400));
+
+    expect(find.byType(Image), findsOneWidget);
+
+    await tester.pump(const Duration(milliseconds: 2500));
+    await tester.pump();
+  });
+
+  testWidgets('splash hands over to the entry chooser', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
+    await tester.pump(const Duration(milliseconds: 2500));
     await tester.pump();
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    expect(find.byType(ChooseEntryScreen), findsOneWidget);
+  });
+
+  testWidgets('entry chooser offers BoaMe App and Admin', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: ChooseEntryScreen()));
+    await tester.pump();
+
+    expect(find.text('BoaMe App'), findsOneWidget);
+    expect(find.text('Admin'), findsOneWidget);
+    // The old kiosk / mobile-app wording is gone.
+    expect(find.text('KIOSK'), findsNothing);
+    expect(find.text('MOBILE APP'), findsNothing);
+  });
+
+  testWidgets('entry chooser labels both audiences', (tester) async {
+    await tester.pumpWidget(const MaterialApp(home: ChooseEntryScreen()));
+    await tester.pump();
+
+    expect(find.text('Members and ambassadors'), findsOneWidget);
+    expect(find.text('Network administrators'), findsOneWidget);
+  });
+
+  testWidgets('data service failure replaces the splash animation',
+      (tester) async {
+    await tester.pumpWidget(
+      const MaterialApp(home: SplashScreen(firebaseError: 'offline')),
+    );
+    await tester.pump();
+
+    expect(find.text('The data service could not start.'), findsOneWidget);
+    expect(find.text('BoaMe'), findsOneWidget);
   });
 }
