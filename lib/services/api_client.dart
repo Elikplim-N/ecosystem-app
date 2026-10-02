@@ -63,7 +63,7 @@ class ApiClient {
   static const _accessTokenKey = 'access_token';
   static const _refreshTokenKey = 'refresh_token';
 
-  static const _defaultBaseUrl = 'http://localhost:3000';
+  static const _defaultBaseUrl = 'https://api-boame-178-105-184-157.sslip.io';
 
   /// Access tokens last 15 minutes by default, so anything that polls should
   /// not be much faster than this.

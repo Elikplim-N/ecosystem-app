@@ -127,7 +127,7 @@ class BinsRepository {
         'longitude': longitude,
         'address': address.trim(),
         'fillPercent': fillLevel,
-        'rejectedFillPercent': ?rejectedFillLevel,
+        if (rejectedFillLevel != null) 'rejectedFillPercent': rejectedFillLevel,
       },
     );
     return Bin.fromJson(body['bin'] as Map<String, dynamic>);
@@ -200,7 +200,11 @@ class BinsRepository {
   }) async {
     await _api.postJson(
       '/api/bins/$binId/collect',
-      body: {'weightKg': weightKg, 'isEstimated': true, 'notes': ?notes},
+      body: {
+        'weightKg': weightKg,
+        'isEstimated': true,
+        if (notes != null) 'notes': notes,
+      },
     );
   }
 

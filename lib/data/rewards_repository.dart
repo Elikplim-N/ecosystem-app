@@ -178,7 +178,7 @@ class RewardsRepository {
         'category': category,
         if (partnerName != null && partnerName.isNotEmpty)
           'partnerName': partnerName,
-        'stock': ?stock,
+        if (stock != null) 'stock': stock,
       },
     );
     return Reward.fromJson(body['reward'] as Map<String, dynamic>);
@@ -197,13 +197,13 @@ class RewardsRepository {
     final body = await _api.patchJson(
       '/api/rewards/admin/$id',
       body: {
-        'title': ?title,
-        'costPoints': ?costPoints,
-        'description': ?description,
-        'category': ?category,
-        'partnerName': ?partnerName,
-        'stock': ?stock,
-        'active': ?active,
+        if (title != null) 'title': title,
+        if (costPoints != null) 'costPoints': costPoints,
+        if (description != null) 'description': description,
+        if (category != null) 'category': category,
+        if (partnerName != null) 'partnerName': partnerName,
+        if (stock != null) 'stock': stock,
+        if (active != null) 'active': active,
       },
     );
     return Reward.fromJson(body['reward'] as Map<String, dynamic>);

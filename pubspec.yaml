@@ -37,8 +37,7 @@ dependencies:
   # Data now comes from the Node API in backend/, not Firebase. See
   # lib/services/api_client.dart.
   http: ^1.6.0
-  shared_preferences: ^2.5.5
-  intl: ^0.20.3
+  intl: ^0.20.2
   flutter_map: ^8.3.2
   latlong2: ^0.10.1
   geolocator: ^14.0.2
