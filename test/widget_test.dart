@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:ecosytem/screens/auth_gate.dart';
 import 'package:ecosytem/screens/splash_screen.dart';
 
 void main() {
@@ -27,31 +28,12 @@ void main() {
     await tester.pump();
   });
 
-  testWidgets('splash hands over to the entry chooser', (tester) async {
+  testWidgets('splash hands over to auth gate', (tester) async {
     await tester.pumpWidget(const MaterialApp(home: SplashScreen()));
     await tester.pump(const Duration(milliseconds: 2500));
     await tester.pump();
 
-    expect(find.byType(ChooseEntryScreen), findsOneWidget);
-  });
-
-  testWidgets('entry chooser offers BoaMe App and Admin', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: ChooseEntryScreen()));
-    await tester.pump();
-
-    expect(find.text('BoaMe App'), findsOneWidget);
-    expect(find.text('Admin'), findsOneWidget);
-    // The old kiosk / mobile-app wording is gone.
-    expect(find.text('KIOSK'), findsNothing);
-    expect(find.text('MOBILE APP'), findsNothing);
-  });
-
-  testWidgets('entry chooser labels both audiences', (tester) async {
-    await tester.pumpWidget(const MaterialApp(home: ChooseEntryScreen()));
-    await tester.pump();
-
-    expect(find.text('Members and ambassadors'), findsOneWidget);
-    expect(find.text('Network administrators'), findsOneWidget);
+    expect(find.byType(AuthGate), findsOneWidget);
   });
 
   testWidgets('startup failure replaces the splash animation', (tester) async {

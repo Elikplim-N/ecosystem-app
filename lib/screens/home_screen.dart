@@ -15,6 +15,7 @@ import '../models/member.dart';
 import '../services/auth_service.dart';
 import 'admin/ambassador_screens.dart';
 import 'admin/bins_screen.dart';
+import 'admin_home_screen.dart';
 import 'ambassador_application_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -71,7 +72,10 @@ class HomeScreen extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                _TopBar(avatarIcon: avatarIcon),
+                _TopBar(
+                  avatarIcon: avatarIcon,
+                  isAdmin: data.role == AppRole.admin,
+                ),
                 const SizedBox(height: 22),
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -225,9 +229,10 @@ class HomeScreen extends StatelessWidget {
 // ============================================================
 
 class _TopBar extends StatelessWidget {
-  const _TopBar({required this.avatarIcon});
+  const _TopBar({required this.avatarIcon, this.isAdmin = false});
 
   final String avatarIcon;
+  final bool isAdmin;
 
   @override
   Widget build(BuildContext context) {
@@ -245,6 +250,38 @@ class _TopBar extends StatelessWidget {
             child: Image.asset(HomeScreen.logo, fit: BoxFit.contain),
           ),
           const Spacer(),
+          if (isAdmin) ...[
+            GestureDetector(
+              onTap: () => Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const AdminHomeScreen()),
+              ),
+              child: Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(
+                  color: kMetricBlueTint,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: kMetricBlue.withValues(alpha: 0.3)),
+                ),
+                child: const Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.shield_rounded, size: 16, color: kMetricBlue),
+                    SizedBox(width: 4),
+                    Text(
+                      'Admin',
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: kMetricBlue,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: 10),
+          ],
           const _NotificationBell(),
           const SizedBox(width: 14),
           GestureDetector(

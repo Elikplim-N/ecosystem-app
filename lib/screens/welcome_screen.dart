@@ -66,7 +66,7 @@ class _WelcomeScreenState extends State<WelcomeScreen>
       if (mounted) {
         Navigator.of(context).pushReplacement(
           MaterialPageRoute<void>(
-            builder: (_) => AuthGate(entry: widget.entry),
+            builder: (_) => const AuthGate(),
           ),
         );
       }

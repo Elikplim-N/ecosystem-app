@@ -382,6 +382,7 @@ class AppTopBar extends StatelessWidget {
     this.avatarIcon = '',
     this.logoHeight = 34,
     this.topPadding = 14,
+    this.action,
   });
 
   final VoidCallback onNotifications;
@@ -390,6 +391,7 @@ class AppTopBar extends StatelessWidget {
   final String avatarIcon;
   final double logoHeight;
   final double topPadding;
+  final Widget? action;
 
   @override
   Widget build(BuildContext context) {
@@ -407,6 +409,10 @@ class AppTopBar extends StatelessWidget {
             child: Image.asset(kLogoAsset, fit: BoxFit.contain),
           ),
           const Spacer(),
+          if (action != null) ...[
+            action!,
+            const SizedBox(width: 10),
+          ],
           _TopBarAction(
             badgeCount: notificationCount,
             onTap: onNotifications,

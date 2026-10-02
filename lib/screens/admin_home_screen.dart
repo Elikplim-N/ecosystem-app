@@ -15,6 +15,7 @@ import 'admin_manage_rewards_screen.dart';
 import 'demo_data.dart';
 import 'notifications_screen.dart';
 import 'profile_screen.dart';
+import 'home_screen.dart';
 import 'design_system.dart';
 
 /// Super-admin home. Every management area hangs off this screen.
@@ -99,6 +100,95 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                             color: kTextMuted,
                             height: 1.4,
                           ),
+                        ),
+                        StreamBuilder<MemberSession>(
+                          stream: auth.sessions,
+                          builder: (context, snap) {
+                            final m = snap.data?.member;
+                            if (m == null) return const SizedBox.shrink();
+                            return Padding(
+                              padding: const EdgeInsets.only(top: 14),
+                              child: SoftCard(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const HomeScreen(role: AppRole.admin),
+                                  ),
+                                ),
+                                color: Colors.white,
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 12,
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: kPastelMint,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: const Icon(
+                                        Icons.recycling_rounded,
+                                        color: kPrimaryColor,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: CrossAxisAlignment.start,
+                                        children: [
+                                          const Text(
+                                            'Your Personal Recycling Tracking',
+                                            style: TextStyle(
+                                              fontSize: 11.5,
+                                              color: kTextMuted,
+                                              fontWeight: FontWeight.w600,
+                                            ),
+                                          ),
+                                          const SizedBox(height: 2),
+                                          Text(
+                                            '${m.points} pts  •  ${m.bottles} bottles  •  ${m.weight.toStringAsFixed(1)} kg',
+                                            style: const TextStyle(
+                                              fontSize: 13.5,
+                                              fontWeight: FontWeight.w800,
+                                              color: kTextDark,
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                                      decoration: BoxDecoration(
+                                        color: kMetricTealTint,
+                                        borderRadius: BorderRadius.circular(10),
+                                      ),
+                                      child: const Row(
+                                        mainAxisSize: MainAxisSize.min,
+                                        children: [
+                                          Text(
+                                            'Open',
+                                            style: TextStyle(
+                                              fontSize: 11,
+                                              fontWeight: FontWeight.w800,
+                                              color: kMetricTeal,
+                                            ),
+                                          ),
+                                          Icon(
+                                            Icons.chevron_right_rounded,
+                                            size: 14,
+                                            color: kMetricTeal,
+                                          ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            );
+                          },
                         ),
                         const SizedBox(height: 20),
                         _MetricGrid(
@@ -413,6 +503,37 @@ class _AdminTopBar extends StatelessWidget {
 
         return AppTopBar(
           notificationCount: count,
+          action: GestureDetector(
+            onTap: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (_) => const HomeScreen(role: AppRole.admin),
+              ),
+            ),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+              decoration: BoxDecoration(
+                color: kMetricTealTint,
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(color: kMetricTeal.withValues(alpha: 0.3)),
+              ),
+              child: const Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.recycling_rounded, size: 16, color: kMetricTeal),
+                  SizedBox(width: 4),
+                  Text(
+                    'Member View',
+                    style: TextStyle(
+                      fontSize: 12,
+                      fontWeight: FontWeight.w700,
+                      color: kMetricTeal,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
           onNotifications: () => _open(context, const NotificationsScreen()),
           onProfile: () => _open(context, const ProfileScreen()),
         );
