@@ -243,7 +243,11 @@ class ApiClient {
     if (response.statusCode < 200 || response.statusCode >= 300) {
       throw _error(response);
     }
-    return jsonDecode(response.body) as T;
+    final decoded = jsonDecode(response.body);
+    if (decoded is List && T == Map<String, dynamic>) {
+      return <String, dynamic>{'items': decoded} as T;
+    }
+    return decoded as T;
   }
 
   Future<Map<String, dynamic>> getJson(
@@ -267,7 +271,7 @@ class ApiClient {
   /// Every endpoint wraps its payload in a named key (`{"rewards": [...]}`),
   /// so lists are read off the body rather than returned bare.
   List<dynamic> listOf(Map<String, dynamic> body, String key) {
-    final value = body[key];
+    final value = body[key] ?? body['items'];
     return value is List ? value : const [];
   }
 

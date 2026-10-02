@@ -49,7 +49,7 @@ class Reward {
       description: readNullableString(data['description']),
       category: readString(data['category'], 'standard'),
       partnerName: readNullableString(data['partnerName']),
-      costPoints: readInt(data['costPoints']),
+      costPoints: readInt(data['costPoints'] ?? data['pointsCost']),
       stock: data['stock'] == null ? null : readInt(data['stock']),
       myPoints: data['myPoints'] == null ? null : readInt(data['myPoints']),
       canAfford: data['canAfford'] == null ? null : readBool(data['canAfford']),
