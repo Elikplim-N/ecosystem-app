@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
 
+import '../data/rewards_repository.dart';
+import '../models/member.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
 import 'demo_data.dart';
 import 'design_system.dart';
 import 'ui_helpers.dart';
@@ -11,52 +13,34 @@ class RewardsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
+    final RewardsRepository rewards = RewardsRepository();
+    return StreamBuilder<MemberSession>(
+      stream: auth.sessions,
+      builder: (context, session) {
+        final member = session.data?.member;
 
-    if (user == null) {
-      return const Scaffold(
-        body: Center(
-          child: Text('No user is logged in'),
-        ),
-      );
-    }
+        if (!session.hasData) {
+          return const Scaffold(
+            body: Center(child: CircularProgressIndicator()),
+          );
+        }
 
-    return Scaffold(
-      backgroundColor: kBackground,
-      appBar: AppBar(
-        title: const Text('Rewards'),
-        centerTitle: true,
-      ),
-      body: StreamBuilder<DocumentSnapshot>(
-        stream: FirebaseFirestore.instance
-            .collection('users')
-            .doc(user.uid)
-            .snapshots(),
-        builder: (context, userSnapshot) {
-          if (userSnapshot.connectionState == ConnectionState.waiting) {
-            return const Center(child: CircularProgressIndicator());
-          }
+        if (!session.data!.signedIn || member == null) {
+          return const Scaffold(
+            body: Center(child: Text('No user is logged in')),
+          );
+        }
 
-          if (userSnapshot.hasError) {
-            return Center(
-              child: Text('Error loading user data:\n${userSnapshot.error}'),
-            );
-          }
+        // Review mode: a mid-range balance so both the affordable and the
+        // locked card states are visible before real data exists.
+        final int points = kDemoMode && member.points == 0
+            ? 850
+            : member.points;
 
-          if (!userSnapshot.hasData || !userSnapshot.data!.exists) {
-            return const Center(child: Text('User data not found'));
-          }
-
-          final userData =
-              userSnapshot.data!.data() as Map<String, dynamic>;
-
-          // Review mode: a mid-range balance so both the affordable and the
-          // locked card states are visible before real data exists.
-          final int points = kDemoMode && (userData['points'] ?? 0) == 0
-              ? 850
-              : (userData['points'] ?? 0) as int;
-
-          return Column(
+        return Scaffold(
+          backgroundColor: kBackground,
+          appBar: AppBar(title: const Text('Rewards'), centerTitle: true),
+          body: Column(
             children: [
               // =========================
               // AVAILABLE POINTS
@@ -110,12 +94,8 @@ class RewardsScreen extends StatelessWidget {
               // REWARDS LIST
               // =========================
               Expanded(
-                child: StreamBuilder<QuerySnapshot>(
-                  stream: FirebaseFirestore.instance
-                      .collection('rewards')
-                      .where('active', isEqualTo: true)
-                      .orderBy('costPoints')
-                      .snapshots(),
+                child: StreamBuilder<List<Reward>>(
+                  stream: rewards.watchRewards(),
                   builder: (context, rewardSnapshot) {
                     if (rewardSnapshot.connectionState ==
                         ConnectionState.waiting) {
@@ -134,8 +114,7 @@ class RewardsScreen extends StatelessWidget {
                       );
                     }
 
-                    final List<QueryDocumentSnapshot> live =
-                        rewardSnapshot.data?.docs ?? [];
+                    final List<Reward> live = rewardSnapshot.data ?? const [];
 
                     final bool usingDemo = live.isEmpty && kDemoMode;
 
@@ -147,131 +126,35 @@ class RewardsScreen extends StatelessWidget {
 
                     return ListView.builder(
                       padding: const EdgeInsets.fromLTRB(20, 12, 20, 28),
-                      itemCount:
-                          usingDemo ? demoRewards.length : live.length,
+                      itemCount: usingDemo ? demoRewards.length : live.length,
                       itemBuilder: (context, index) {
-                        final QueryDocumentSnapshot? reward =
-                            usingDemo ? null : live[index];
+                        if (usingDemo) {
+                          final demo = demoRewards[index];
+                          return _card(
+                            context,
+                            title: demo.title,
+                            costPoints: demo.costPoints,
+                            type: demo.type,
+                            canAfford: points >= demo.costPoints,
+                            onRedeem: null,
+                          );
+                        }
 
-                        final Map<String, dynamic> data = usingDemo
-                            ? <String, dynamic>{
-                                'title': demoRewards[index].title,
-                                'costPoints': demoRewards[index].costPoints,
-                                'type': demoRewards[index].type,
-                              }
-                            : reward!.data() as Map<String, dynamic>;
+                        final Reward reward = live[index];
 
-                        final String title = '${data['title'] ?? 'Reward'}';
-                        final num costPoints =
-                            (data['costPoints'] ?? 0) as num;
-                        final String type = '${data['type'] ?? 'standard'}';
-                        final bool canAfford = points >= costPoints;
-
-                        return Container(
-                          margin: const EdgeInsets.only(bottom: 12),
-                          padding: const EdgeInsets.all(16),
-                          decoration: BoxDecoration(
-                            color: Colors.white,
-                            borderRadius: BorderRadius.circular(18),
-                            border: Border.all(color: kBeigeDeep),
-                            boxShadow: [
-                              BoxShadow(
-                                color: kPrimaryDark.withValues(alpha: 0.06),
-                                blurRadius: 12,
-                                offset: const Offset(0, 5),
-                              ),
-                            ],
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                width: 52,
-                                height: 52,
-                                alignment: Alignment.center,
-                                decoration: BoxDecoration(
-                                  color: (canAfford
-                                          ? kPrimaryColor
-                                          : kTextMuted)
-                                      .withValues(alpha: 0.12),
-                                  borderRadius: BorderRadius.circular(16),
-                                ),
-                                child: Icon(
-                                  type == 'partner'
-                                      ? Icons.handshake_rounded
-                                      : Icons.card_giftcard_rounded,
-                                  size: 24,
-                                  color: canAfford
-                                      ? kPrimaryColor
-                                      : kTextMuted,
-                                ),
-                              ),
-                              const SizedBox(width: 14),
-                              // Reward name, with the point cost beneath it.
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment:
-                                      CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      title,
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: const TextStyle(
-                                        fontSize: 15.5,
-                                        fontWeight: FontWeight.w800,
-                                        color: kTextDark,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      '$costPoints points',
-                                      style: TextStyle(
-                                        fontSize: 13,
-                                        fontWeight: FontWeight.w800,
-                                        color: canAfford
-                                            ? kPrimaryColor
-                                            : kTextMuted,
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              ElevatedButton(
-                                onPressed: canAfford
-                                    ? () => _confirmRedeem(
-                                          context,
-                                          user.uid,
-                                          reward?.id ?? 'demo',
-                                          title,
-                                          costPoints,
-                                          userData,
-                                        )
-                                    : null,
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: kPrimaryColor,
-                                  foregroundColor: Colors.white,
-                                  disabledBackgroundColor: kBeigeDeep,
-                                  disabledForegroundColor: kTextMuted,
-                                  elevation: 0,
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 20,
-                                    vertical: 12,
-                                  ),
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.circular(999),
-                                  ),
-                                ),
-                                child: const Text(
-                                  'REDEEM',
-                                  style: TextStyle(
-                                    fontSize: 12.5,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
+                        return _card(
+                          context,
+                          title: reward.title,
+                          costPoints: reward.costPoints,
+                          type: reward.category,
+                          // The server decides this, from the same row it
+                          // will check when the points are actually taken.
+                          canAfford: reward.affordable && !reward.outOfStock,
+                          subtitle: reward.outOfStock
+                              ? 'Out of stock'
+                              : reward.description,
+                          onRedeem: () =>
+                              _confirmRedeem(context, member, reward),
                         );
                       },
                     );
@@ -279,8 +162,114 @@ class RewardsScreen extends StatelessWidget {
                 ),
               ),
             ],
-          );
-        },
+          ),
+        );
+      },
+    );
+  }
+
+  // ==========================================================
+  // ONE REWARD ROW
+  // ==========================================================
+
+  /// Extracted so the demo and live rows are literally the same widget. The
+  /// two used to be built separately, which is how they drifted apart.
+  static Widget _card(
+    BuildContext context, {
+    required String title,
+    required int costPoints,
+    required String type,
+    required bool canAfford,
+    required VoidCallback? onRedeem,
+    String? subtitle,
+  }) {
+    return Container(
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: kBeigeDeep),
+        boxShadow: [
+          BoxShadow(
+            color: kPrimaryDark.withValues(alpha: 0.06),
+            blurRadius: 12,
+            offset: const Offset(0, 5),
+          ),
+        ],
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            alignment: Alignment.center,
+            decoration: BoxDecoration(
+              color: (canAfford ? kPrimaryColor : kTextMuted).withValues(
+                alpha: 0.12,
+              ),
+              borderRadius: BorderRadius.circular(16),
+            ),
+            child: Icon(
+              type == 'partner'
+                  ? Icons.handshake_rounded
+                  : Icons.card_giftcard_rounded,
+              size: 24,
+              color: canAfford ? kPrimaryColor : kTextMuted,
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Reward name, with the point cost beneath it.
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: kTextDark,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  subtitle != null && subtitle.isNotEmpty
+                      ? subtitle
+                      : '$costPoints points',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w800,
+                    color: canAfford ? kPrimaryColor : kTextMuted,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 10),
+          ElevatedButton(
+            onPressed: canAfford ? onRedeem : null,
+            style: ElevatedButton.styleFrom(
+              backgroundColor: kPrimaryColor,
+              foregroundColor: Colors.white,
+              disabledBackgroundColor: kBeigeDeep,
+              disabledForegroundColor: kTextMuted,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(999),
+              ),
+            ),
+            child: const Text(
+              'REDEEM',
+              style: TextStyle(fontSize: 12.5, fontWeight: FontWeight.w800),
+            ),
+          ),
+        ],
       ),
     );
   }
@@ -291,14 +280,10 @@ class RewardsScreen extends StatelessWidget {
 
   static void _confirmRedeem(
     BuildContext context,
-    String uid,
-    String rewardId,
-    String title,
-    num costPoints,
-    Map<String, dynamic> userData,
+    Member member,
+    Reward reward,
   ) {
-    final phoneNumber =
-        userData['phone'] ?? userData['phoneNumber'] ?? '';
+    final phoneNumber = member.phone;
 
     showDialog(
       context: context,
@@ -309,9 +294,9 @@ class RewardsScreen extends StatelessWidget {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text('Redeem "$title" for $costPoints points?'),
+              Text('Redeem "${reward.title}" for ${reward.costPoints} points?'),
               const SizedBox(height: 12),
-              if (phoneNumber.toString().isNotEmpty)
+              if (phoneNumber.isNotEmpty)
                 Text(
                   'Reward will be processed for:\n$phoneNumber',
                   style: const TextStyle(fontWeight: FontWeight.bold),
@@ -329,18 +314,11 @@ class RewardsScreen extends StatelessWidget {
               child: const Text('CANCEL'),
             ),
             ElevatedButton(
-              onPressed: phoneNumber.toString().isEmpty
+              onPressed: phoneNumber.isEmpty
                   ? null
                   : () {
                       Navigator.pop(context);
-                      _redeem(
-                        context,
-                        uid,
-                        rewardId,
-                        title,
-                        costPoints,
-                        phoneNumber.toString(),
-                      );
+                      _redeem(context, reward);
                     },
               child: const Text('CONFIRM'),
             ),
@@ -354,81 +332,49 @@ class RewardsScreen extends StatelessWidget {
   // REDEEM REWARD
   // ==========================================================
 
-  static Future<void> _redeem(
-    BuildContext context,
-    String uid,
-    String rewardId,
-    String title,
-    num costPoints,
-    String phoneNumber,
-  ) async {
-    final userRef = FirebaseFirestore.instance
-        .collection('users')
-        .doc(uid);
-
+  /// Posts the redemption and lets the server take the points.
+  ///
+  /// The previous version opened a Firestore transaction on the client that
+  /// read the balance, subtracted the cost and wrote a redemption document.
+  /// Anything that interrupted that — the app closing, the network dropping,
+  /// a rule rejection — either cost the points without recording the request
+  /// or recorded the request without taking the points. The API does the same
+  /// thing in one database transaction, so it cannot land half-done.
+  static Future<void> _redeem(BuildContext context, Reward reward) async {
     try {
-      await FirebaseFirestore.instance
-          .runTransaction((transaction) async {
-        final snapshot = await transaction.get(userRef);
+      final result = await RewardsRepository().redeem(reward.id);
 
-        if (!snapshot.exists) {
-          throw Exception('User account not found.');
-        }
-
-        final userData = snapshot.data()!;
-        final currentPoints = (userData['points'] ?? 0) as num;
-
-        if (currentPoints < costPoints) {
-          throw Exception('Not enough points.');
-        }
-
-        final redemptionRef = userRef
-            .collection('redemptions')
-            .doc();
-
-        transaction.update(
-          userRef,
-          {'points': currentPoints - costPoints},
-        );
-
-        transaction.set(
-          redemptionRef,
-          {
-            'rewardId': rewardId,
-            'title': title,
-            'costPoints': costPoints,
-            'phoneNumber': phoneNumber,
-            'status': 'pending',
-            'timestamp': FieldValue.serverTimestamp(),
-          },
-        );
-      });
+      // The balance moved server-side, so the session member is now stale.
+      // Refreshing it is what updates the points card behind this screen.
+      await auth.refreshCurrentMember();
 
       if (!context.mounted) return;
 
-      showDialog(
+      await showDialog<void>(
         context: context,
-        builder: (context) {
-          return AlertDialog(
-            title: const Text('Redemption Submitted 🎉'),
-            content: Text(
-              '"$title" has been submitted successfully.\n\n'
-              'Your reward is currently being processed.',
+        builder: (context) => AlertDialog(
+          title: const Text('Redemption Submitted 🎉'),
+          content: Text(
+            '"${result.rewardTitle}" has been submitted successfully.\n\n'
+            'You have ${result.pointsLeft} points left. '
+            'Your reward is currently being processed.',
+          ),
+          actions: [
+            ElevatedButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('DONE'),
             ),
-            actions: [
-              ElevatedButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('DONE'),
-              ),
-            ],
-          );
-        },
+          ],
+        ),
       );
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!context.mounted) return;
-
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Redemption failed: $e')),
+        SnackBar(
+          content: Text(
+            e.isUserFacing ? e.message : 'Redemption failed. Try again.',
+          ),
+        ),
       );
     }
   }

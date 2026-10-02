@@ -7,10 +7,10 @@ import 'ui_helpers.dart';
 /// Shows the BoaMe mark while the splash animation plays, then hands over
 /// to the entry chooser.
 class SplashScreen extends StatefulWidget {
-  const SplashScreen({super.key, this.firebaseError});
+  const SplashScreen({super.key, this.startupError});
 
-  /// Set when Firebase failed to initialise; shown instead of hanging.
-  final Object? firebaseError;
+  /// Set when the saved session could not be read; shown instead of hanging.
+  final Object? startupError;
 
   @override
   State<SplashScreen> createState() => _SplashScreenState();
@@ -73,11 +73,12 @@ class _SplashScreenState extends State<SplashScreen>
       vsync: this,
       duration: const Duration(milliseconds: 2100),
     );
-    _breath = Tween<double>(begin: 1.0, end: 1.045).animate(
-      CurvedAnimation(parent: _pulse, curve: Curves.easeInOut),
-    );
+    _breath = Tween<double>(
+      begin: 1.0,
+      end: 1.045,
+    ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut));
 
-    if (widget.firebaseError != null) {
+    if (widget.startupError != null) {
       // Nothing to animate on the error screen, and a running ticker there
       // would never settle.
       _intro.value = 1;
@@ -106,7 +107,7 @@ class _SplashScreenState extends State<SplashScreen>
 
   @override
   Widget build(BuildContext context) {
-    if (widget.firebaseError != null) {
+    if (widget.startupError != null) {
       return const _DataServiceUnavailable();
     }
 
@@ -330,7 +331,7 @@ class _GlowOrbsState extends State<_GlowOrbs>
   }
 }
 
-/// Shown instead of the splash when Firebase cannot start.
+/// Shown instead of the splash when the saved session could not be read.
 class _DataServiceUnavailable extends StatelessWidget {
   const _DataServiceUnavailable();
 
@@ -367,11 +368,14 @@ class _DataServiceUnavailable extends StatelessWidget {
               ),
               const SizedBox(height: 8),
               const Text(
-                'Check your internet connection and reload. Firebase is being '
-                'replaced by the BoaMe backend, so this stops being needed '
-                'once the migration lands.',
+                'Check your connection and make sure the BoaMe server address '
+                'is right, then reload.',
                 textAlign: TextAlign.center,
-                style: TextStyle(fontSize: 13.5, color: kTextMuted, height: 1.5),
+                style: TextStyle(
+                  fontSize: 13.5,
+                  color: kTextMuted,
+                  height: 1.5,
+                ),
               ),
               const SizedBox(height: 26),
               OutlinedButton.icon(
@@ -485,7 +489,8 @@ class ChooseEntryScreen extends StatelessWidget {
                 icon: Icons.shield_rounded,
                 title: 'Admin',
                 subtitle: 'Network administrators',
-                detail: 'Manage bins, members, RFID cards and ambassador requests.',
+                detail:
+                    'Manage bins, members, RFID cards and ambassador requests.',
                 tint: kMetricBlueTint,
                 accent: kMetricBlue,
                 onTap: () => _go(context, AppEntry.admin),

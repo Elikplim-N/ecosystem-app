@@ -1,8 +1,8 @@
-﻿import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import '../data/activity_repository.dart';
 import '../data/bins_repository.dart';
 import '../data/user_repository.dart';
+import '../services/auth_service.dart';
 import '../models/app_role.dart';
 import '../models/bin.dart';
 import '../models/member.dart';
@@ -29,7 +29,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
   final _users = UserRepository();
   final _bins = BinsRepository();
 
-  String get _uid => FirebaseAuth.instance.currentUser?.uid ?? '';
+  String get _uid => auth.currentUid;
 
   void _push(Widget screen) {
     Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
@@ -48,20 +48,29 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
               final members = userSnapshot.data ?? const <Member>[];
               final bins = binSnapshot.data ?? const <Bin>[];
               final binSummary = BinsRepository.summarise(bins);
-              final pending = members.where((m) => m.isPendingApplication).length;
+              final pending = members
+                  .where((m) => m.isPendingApplication)
+                  .length;
 
               final loading =
                   userSnapshot.connectionState == ConnectionState.waiting ||
                   binSnapshot.connectionState == ConnectionState.waiting;
 
-              final carded = members.where((m) => (m.rfidUid ?? '').isNotEmpty).length;
-              final memberRing = members.isEmpty ? 0.0 : carded / members.length;
-              final activeRing =
-                  binSummary.total == 0 ? 0.0 : binSummary.active / binSummary.total;
-              final fullRing =
-                  binSummary.total == 0 ? 0.0 : binSummary.full / binSummary.total;
-              final pendingRing =
-                  members.isEmpty ? 0.0 : pending / members.length;
+              final carded = members
+                  .where((m) => (m.rfidUid ?? '').isNotEmpty)
+                  .length;
+              final memberRing = members.isEmpty
+                  ? 0.0
+                  : carded / members.length;
+              final activeRing = binSummary.total == 0
+                  ? 0.0
+                  : binSummary.active / binSummary.total;
+              final fullRing = binSummary.total == 0
+                  ? 0.0
+                  : binSummary.full / binSummary.total;
+              final pendingRing = members.isEmpty
+                  ? 0.0
+                  : pending / members.length;
 
               return ListView(
                 padding: const EdgeInsets.only(bottom: 44),
@@ -85,7 +94,11 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                         const SizedBox(height: 6),
                         const Text(
                           'Everything happening across the recycling network today.',
-                          style: TextStyle(fontSize: 13.5, color: kTextMuted, height: 1.4),
+                          style: TextStyle(
+                            fontSize: 13.5,
+                            color: kTextMuted,
+                            height: 1.4,
+                          ),
                         ),
                         const SizedBox(height: 20),
                         _MetricGrid(
@@ -100,13 +113,16 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           fullRing: fullRing,
                           pending: pending,
                           pendingRing: pendingRing,
-                          onOpenPending: () => _push(const AmbassadorApplicationsScreen()),
-                          onOpenFull: () => _push(BinsScreen(
-                            uid: _uid,
-                            role: AppRole.admin,
-                            displayName: 'Admin',
-                            title: 'Manage bins',
-                          )),
+                          onOpenPending: () =>
+                              _push(const AmbassadorApplicationsScreen()),
+                          onOpenFull: () => _push(
+                            BinsScreen(
+                              uid: _uid,
+                              role: AppRole.admin,
+                              displayName: 'Admin',
+                              title: 'Manage bins',
+                            ),
+                          ),
                         ),
                         const SizedBox(height: 26),
                         GhanaBinMap(bins: bins),
@@ -224,8 +240,7 @@ class _AdminHomeScreenState extends State<AdminHomeScreen> {
                           subtitle: 'Add, activate or remove rewards',
                           tint: kMetricBlueTint,
                           accent: kMetricBlue,
-                          onTap: () =>
-                              _push(const AdminManageRewardsScreen()),
+                          onTap: () => _push(const AdminManageRewardsScreen()),
                         ),
                         const SizedBox(height: 24),
                         const SectionHeader(title: 'Analytics'),
@@ -377,28 +392,23 @@ class _AdminTopBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final user = FirebaseAuth.instance.currentUser;
-
-    if (user == null) {
+    if (!auth.isSignedIn) {
       return AppTopBar(
         onNotifications: () => _open(context, const NotificationsScreen()),
         onProfile: () => _open(context, const ProfileScreen()),
       );
     }
 
-    return StreamBuilder<QuerySnapshot>(
-      stream: FirebaseFirestore.instance
-          .collection('notifications')
-          .doc(user.uid)
-          .collection('items')
-          .where('read', isEqualTo: false)
-          .snapshots(),
-      builder: (BuildContext context, AsyncSnapshot<QuerySnapshot> snapshot) {
-        int count = snapshot.data?.docs.length ?? 0;
+    return StreamBuilder<NotificationFeed>(
+      stream: NotificationsRepository().watchFeed(),
+      builder: (BuildContext context, AsyncSnapshot<NotificationFeed> snapshot) {
+        int count = snapshot.data?.unread ?? 0;
 
         // Review mode — fall back to the sample unread items so the dot shows.
         if (count == 0 && kDemoMode) {
-          count = demoNotifications.where((DemoNotification n) => !n.read).length;
+          count = demoNotifications
+              .where((DemoNotification n) => !n.read)
+              .length;
         }
 
         return AppTopBar(
@@ -439,7 +449,13 @@ class _AdminTile extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 15),
       child: Row(
         children: [
-          IconChip(icon: icon, tint: tint, color: accent, size: 48, iconSize: 23),
+          IconChip(
+            icon: icon,
+            tint: tint,
+            color: accent,
+            size: 48,
+            iconSize: 23,
+          ),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -456,21 +472,25 @@ class _AdminTile extends StatelessWidget {
                 const SizedBox(height: 3),
                 Text(
                   subtitle,
-                  style: const TextStyle(fontSize: 12.5, color: kTextMuted, height: 1.35),
+                  style: const TextStyle(
+                    fontSize: 12.5,
+                    color: kTextMuted,
+                    height: 1.35,
+                  ),
                 ),
               ],
             ),
           ),
           if (badge != null) ...[
             const SizedBox(width: 8),
-            StatusChip(
-              label: badge!,
-              color: badgeColor ?? accent,
-              dense: true,
-            ),
+            StatusChip(label: badge!, color: badgeColor ?? accent, dense: true),
           ],
           const SizedBox(width: 6),
-          Icon(Icons.chevron_right_rounded, size: 20, color: accent.withValues(alpha: 0.5)),
+          Icon(
+            Icons.chevron_right_rounded,
+            size: 20,
+            color: accent.withValues(alpha: 0.5),
+          ),
         ],
       ),
     );
@@ -506,12 +526,31 @@ class _BinDistributionCard extends StatelessWidget {
     }
 
     final rows = <_ChartRow>[
-      _ChartRow('Empty enough to use', bins.where((b) => b.status == BinStatus.available).length, kMetricTeal),
-      _ChartRow('Filling up', bins.where((b) => b.status == BinStatus.filling).length, kMetricAmber),
-      _ChartRow('Full, needs pickup', bins.where((b) => b.status == BinStatus.full).length, kMetricRose),
-      _ChartRow('Out of service', bins.where((b) => b.status == BinStatus.disabled).length, kTextMuted),
+      _ChartRow(
+        'Empty enough to use',
+        bins.where((b) => b.status == BinStatus.available).length,
+        kMetricTeal,
+      ),
+      _ChartRow(
+        'Filling up',
+        bins.where((b) => b.status == BinStatus.filling).length,
+        kMetricAmber,
+      ),
+      _ChartRow(
+        'Full, needs pickup',
+        bins.where((b) => b.status == BinStatus.full).length,
+        kMetricRose,
+      ),
+      _ChartRow(
+        'Out of service',
+        bins.where((b) => b.status == BinStatus.disabled).length,
+        kTextMuted,
+      ),
     ];
-    final peak = rows.fold<int>(1, (max, row) => row.value > max ? row.value : max);
+    final peak = rows.fold<int>(
+      1,
+      (max, row) => row.value > max ? row.value : max,
+    );
     final fullCount = rows[2].value;
 
     return SoftCard(
@@ -556,7 +595,12 @@ class _BinDistributionCard extends StatelessWidget {
           ),
           const SizedBox(height: 18),
           for (final row in rows) ...[
-            _BarRow(label: row.label, value: row.value, peak: peak, color: row.color),
+            _BarRow(
+              label: row.label,
+              value: row.value,
+              peak: peak,
+              color: row.color,
+            ),
             const SizedBox(height: 11),
           ],
           const SizedBox(height: 4),

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../data/activity_repository.dart';
+import '../services/api_client.dart';
+import '../services/auth_service.dart';
 import 'ui_helpers.dart';
 
 class ContactScreen extends StatefulWidget {
@@ -12,31 +13,45 @@ class ContactScreen extends StatefulWidget {
 
 class _ContactScreenState extends State<ContactScreen> {
   final messageController = TextEditingController();
+  final ContactRepository _contact = ContactRepository();
   bool isSending = false;
 
   Future<void> _sendMessage() async {
-    if (messageController.text.trim().isEmpty) return;
+    final message = messageController.text.trim();
+    if (message.isEmpty) return;
 
     setState(() => isSending = true);
-    final user = FirebaseAuth.instance.currentUser;
+
+    // Prefilled from the session when there is one, so a signed-in person
+    // does not have to retype their details. The server fills these in too
+    // when they are left out, and works without a session at all.
+    final member = auth.currentMember;
 
     try {
-      await FirebaseFirestore.instance.collection('contact_messages').add({
-        'uid': user?.uid,
-        'message': messageController.text.trim(),
-        'timestamp': FieldValue.serverTimestamp(),
-        'status': 'open',
-      });
+      await _contact.send(
+        message,
+        name: member?.name,
+        email: member?.email,
+        phone: member?.phone,
+      );
 
       messageController.clear();
 
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text("Message sent — we'll get back to you soon!")),
+        const SnackBar(
+          content: Text("Message sent — we'll get back to you soon!"),
+        ),
       );
-    } catch (e) {
+    } on ApiException catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed to send: $e')));
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            e.isUserFacing ? e.message : 'Could not send that. Try again.',
+          ),
+        ),
+      );
     } finally {
       if (mounted) setState(() => isSending = false);
     }
@@ -52,10 +67,7 @@ class _ContactScreenState extends State<ContactScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: kBackground,
-      appBar: AppBar(
-        title: const Text('Contact Us'),
-        centerTitle: true,
-      ),
+      appBar: AppBar(title: const Text('Contact Us'), centerTitle: true),
       body: SafeArea(
         child: ListView(
           padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
@@ -131,12 +143,20 @@ class _ContactScreenState extends State<ContactScreen> {
                   const SizedBox(height: 4),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: messageController,
-                    builder: (BuildContext context, TextEditingValue value, Widget? child) {
-                      return Text(
-                        '${value.text.trim().length} characters',
-                        style: const TextStyle(fontSize: 11.5, color: kTextMuted),
-                      );
-                    },
+                    builder:
+                        (
+                          BuildContext context,
+                          TextEditingValue value,
+                          Widget? child,
+                        ) {
+                          return Text(
+                            '${value.text.trim().length} characters',
+                            style: const TextStyle(
+                              fontSize: 11.5,
+                              color: kTextMuted,
+                            ),
+                          );
+                        },
                   ),
                 ],
               ),
@@ -144,16 +164,21 @@ class _ContactScreenState extends State<ContactScreen> {
             const SizedBox(height: 18),
             ValueListenableBuilder<TextEditingValue>(
               valueListenable: messageController,
-              builder: (BuildContext context, TextEditingValue value, Widget? child) {
-                final bool canSend = value.text.trim().isNotEmpty;
+              builder:
+                  (
+                    BuildContext context,
+                    TextEditingValue value,
+                    Widget? child,
+                  ) {
+                    final bool canSend = value.text.trim().isNotEmpty;
 
-                return PrimaryButton(
-                  label: 'Send Message',
-                  icon: Icons.send_rounded,
-                  isLoading: isSending,
-                  onPressed: canSend ? _sendMessage : null,
-                );
-              },
+                    return PrimaryButton(
+                      label: 'Send Message',
+                      icon: Icons.send_rounded,
+                      isLoading: isSending,
+                      onPressed: canSend ? _sendMessage : null,
+                    );
+                  },
             ),
             const SizedBox(height: 16),
             Container(

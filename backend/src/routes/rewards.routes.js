@@ -18,14 +18,42 @@ const uuid = z.string().uuid('Must be a valid id.');
  * status column here is what gives the admin console a queue to work through.
  */
 
-/** GET /api/rewards */
+/** Serialise a reward for the app. [mine] adds the caller's own balance. */
+function present(r, myPoints = null) {
+  return {
+    id: r.id,
+    title: r.title,
+    description: r.description ?? null,
+    category: r.category ?? 'standard',
+    partnerName: r.partner_name,
+    costPoints: r.cost_points,
+    stock: r.stock,
+    active: r.is_active,
+    myPoints,
+    canAfford: myPoints === null ? null : myPoints >= r.cost_points,
+    createdAt: r.created_at,
+  };
+}
+
+const adminCreateSchema = z.object({
+  title: z.string().trim().min(2, 'Give the reward a title.').max(160),
+  description: z.string().trim().max(1000).optional(),
+  category: z.enum(['standard', 'partner']).default('standard'),
+  partnerName: z.string().trim().max(120).optional(),
+  costPoints: z.coerce.number().int().min(1, 'A reward must cost at least 1 point.').max(1_000_000),
+  stock: z.coerce.number().int().min(0).max(1_000_000).nullable().optional(),
+  active: z.boolean().default(true),
+});
+
+const adminUpdateSchema = adminCreateSchema.partial();
+
+/** GET /api/rewards - the member-facing catalogue. Inactive rows are hidden. */
 router.get(
   '/',
   requireAuth(),
   asyncHandler(async (req, res) => {
     const rows = await many(
-      `select r.id, r.title, r.partner_name, r.cost_points, r.stock, r.is_active,
-              u.points as my_points
+      `select r.*, u.points as my_points
          from rewards r
          cross join users u
         where u.id = $1
@@ -33,18 +61,148 @@ router.get(
       [req.user.id],
     );
     res.json({
-      rewards: rows
-        .filter((r) => r.is_active)
-        .map((r) => ({
-          id: r.id,
-          title: r.title,
-          partnerName: r.partner_name,
-          costPoints: r.cost_points,
-          stock: r.stock,
-          myPoints: r.my_points,
-          canAfford: r.my_points >= r.cost_points,
-        })),
+      rewards: rows.filter((r) => r.is_active).map((r) => present(r, r.my_points)),
     });
+  }),
+);
+
+/**
+ * GET /api/rewards/admin - the full catalogue, including inactive rows.
+ *
+ * Kept separate from the member list so a deactivated reward is hidden from
+ * members without being deleted.
+ */
+router.get(
+  '/admin',
+  requireAuth(),
+  requireRole('admin'),
+  asyncHandler(async (_req, res) => {
+    const rows = await many(`select * from rewards order by cost_points asc`);
+    res.json({ rewards: rows.map((r) => present(r)) });
+  }),
+);
+
+/** POST /api/rewards/admin - add a reward to the catalogue. */
+router.post(
+  '/admin',
+  requireAuth(),
+  requireRole('admin'),
+  validate({ body: adminCreateSchema }),
+  asyncHandler(async (req, res) => {
+    const b = req.body;
+
+    if (b.category === 'partner' && !b.partnerName) {
+      throw AppError.validation('Some fields need attention.', [
+        { field: 'body.partnerName', message: 'Name the partner for a partner reward.' },
+      ]);
+    }
+
+    const row = await withActor(req.user.id, async (client) => {
+      const { rows } = await client.query(
+        `insert into rewards (title, description, category, partner_name, cost_points, stock, is_active)
+         values ($1, $2, $3, $4, $5, $6, $7)
+         returning *`,
+        [
+          b.title, b.description ?? null, b.category, b.partnerName ?? null,
+          b.costPoints, b.stock ?? null, b.active,
+        ],
+      );
+
+      await writeAudit(client, {
+        actorId: req.user.id,
+        action: 'reward.created',
+        entityType: 'reward',
+        entityId: rows[0].id,
+        details: { title: b.title, costPoints: b.costPoints },
+      });
+
+      return rows[0];
+    });
+
+    res.status(201).json({ reward: present(row) });
+  }),
+);
+
+/** PATCH /api/rewards/admin/:id - edit or deactivate. */
+router.patch(
+  '/admin/:id',
+  requireAuth(),
+  requireRole('admin'),
+  validate({ params: z.object({ id: uuid }), body: adminUpdateSchema }),
+  asyncHandler(async (req, res) => {
+    const b = req.body;
+    const row = await withActor(req.user.id, async (client) => {
+      const { rows } = await client.query(
+        `update rewards set
+           title = coalesce($2, title),
+           description = coalesce($3, description),
+           category = coalesce($4, category),
+           partner_name = coalesce($5, partner_name),
+           cost_points = coalesce($6, cost_points),
+           stock = case when $7::boolean then $8 else stock end,
+           is_active = coalesce($9, is_active),
+           updated_at = now()
+         where id = $1
+         returning *`,
+        [
+          req.params.id, b.title ?? null, b.description ?? null, b.category ?? null,
+          b.partnerName ?? null, b.costPoints ?? null, 'stock' in b, b.stock ?? null,
+          b.active ?? null,
+        ],
+      );
+
+      if (!rows[0]) throw AppError.notFound('Reward');
+
+      await writeAudit(client, {
+        actorId: req.user.id,
+        action: 'reward.updated',
+        entityType: 'reward',
+        entityId: req.params.id,
+        details: { fields: Object.keys(b) },
+      });
+
+      return rows[0];
+    });
+
+    res.json({ reward: present(row) });
+  }),
+);
+
+/**
+ * DELETE /api/rewards/admin/:id
+ *
+ * A reward that has ever been redeemed cannot be deleted - redemptions
+ * reference it with ON DELETE RESTRICT, and the history is the point of the
+ * queue. Deactivate it instead.
+ */
+router.delete(
+  '/admin/:id',
+  requireAuth(),
+  requireRole('admin'),
+  validate({ params: z.object({ id: uuid }) }),
+  asyncHandler(async (req, res) => {
+    const used = await one(
+      'select exists(select 1 from redemptions where reward_id = $1) as used',
+      [req.params.id],
+    );
+
+    if (used?.used) {
+      throw AppError.conflict('This reward has been redeemed already. Deactivate it instead.');
+    }
+
+    const removed = await withActor(req.user.id, async (client) => {
+      const { rowCount } = await client.query('delete from rewards where id = $1', [req.params.id]);
+      if (!rowCount) throw AppError.notFound('Reward');
+
+      await writeAudit(client, {
+        actorId: req.user.id,
+        action: 'reward.deleted',
+        entityType: 'reward',
+        entityId: req.params.id,
+      });
+    });
+
+    res.json({ ok: true });
   }),
 );
 

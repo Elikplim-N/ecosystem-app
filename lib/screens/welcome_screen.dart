@@ -1,4 +1,4 @@
-﻿import 'dart:math' as math;
+import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
@@ -18,7 +18,8 @@ class WelcomeScreen extends StatefulWidget {
   State<WelcomeScreen> createState() => _WelcomeScreenState();
 }
 
-class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateMixin {
+class _WelcomeScreenState extends State<WelcomeScreen>
+    with TickerProviderStateMixin {
   /// Onboarding clip art shown at the top of the welcome page.
   ///
   /// Native size is 627 x 350 (RGBA, transparent background).
@@ -44,7 +45,11 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
     super.dispose();
   }
 
-  Animation<double> _in(double begin, double end, {Curve curve = Curves.easeOutCubic}) {
+  Animation<double> _in(
+    double begin,
+    double end, {
+    Curve curve = Curves.easeOutCubic,
+  }) {
     return CurvedAnimation(
       parent: _intro,
       curve: Interval(begin, end, curve: curve),
@@ -74,7 +79,9 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
       backgroundColor: kBackground,
       body: Stack(
         children: [
-          const Positioned.fill(child: CustomPaint(painter: _BackdropPainter())),
+          const Positioned.fill(
+            child: CustomPaint(painter: _BackdropPainter()),
+          ),
           SafeArea(
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 12),
@@ -90,81 +97,86 @@ class _WelcomeScreenState extends State<WelcomeScreen> with TickerProviderStateM
                         child: FadeTransition(
                           opacity: _in(0.0, 0.60),
                           child: ScaleTransition(
-                            scale: Tween<double>(begin: 0.88, end: 1.0)
-                                .animate(_in(0.0, 0.70, curve: Curves.easeOutBack)),
+                            scale: Tween<double>(begin: 0.88, end: 1.0).animate(
+                              _in(0.0, 0.70, curve: Curves.easeOutBack),
+                            ),
                             child: _EcoInfographic(controller: _loop),
                           ),
                         ),
                       ),
                       const SizedBox(height: 14),
-                  FadeTransition(
-                    opacity: _in(0.20, 0.70),
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.18),
-                        end: Offset.zero,
-                      ).animate(_in(0.20, 0.70)),
-                      child: const Text(
-                        'Recycle.\nEarn. Repeat.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: 42,
-                          height: 1.08,
-                          fontWeight: FontWeight.w800,
-                          letterSpacing: -0.8,
-                          color: kPrimaryColor,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  FadeTransition(
-                    opacity: _in(0.38, 0.85),
-                    child: const Padding(
-                      padding: EdgeInsets.symmetric(horizontal: 8),
-                      child: Text(
-                        'Deposit your bottles at any kiosk, collect points, and '
-                        'redeem rewards that keep the planet greener.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(fontSize: 15, height: 1.5, color: kTextMuted),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  FadeTransition(
-                    opacity: _in(0.52, 1.0),
-                    child: SlideTransition(
-                      position: Tween<Offset>(
-                        begin: const Offset(0, 0.25),
-                        end: Offset.zero,
-                      ).animate(_in(0.52, 1.0)),
-                      child: PrimaryButton(
-                        label: 'Login',
-                        icon: Icons.login_rounded,
-                        onPressed: () => _openAuth(AuthMode.login),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FadeTransition(
-                    opacity: _in(0.64, 1.0),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          'New to BoaMe?',
-                          style: TextStyle(color: kTextMuted, fontSize: 14),
-                        ),
-                        TextButton(
-                          onPressed: () => _openAuth(AuthMode.signUp),
+                      FadeTransition(
+                        opacity: _in(0.20, 0.70),
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.18),
+                            end: Offset.zero,
+                          ).animate(_in(0.20, 0.70)),
                           child: const Text(
-                            'Create an account',
-                            style: TextStyle(fontWeight: FontWeight.w700),
+                            'Recycle.\nEarn. Repeat.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 42,
+                              height: 1.08,
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: -0.8,
+                              color: kPrimaryColor,
+                            ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
+                      ),
+                      const SizedBox(height: 10),
+                      FadeTransition(
+                        opacity: _in(0.38, 0.85),
+                        child: const Padding(
+                          padding: EdgeInsets.symmetric(horizontal: 8),
+                          child: Text(
+                            'Deposit your bottles at any kiosk, collect points, and '
+                            'redeem rewards that keep the planet greener.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                              fontSize: 15,
+                              height: 1.5,
+                              color: kTextMuted,
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 20),
+                      FadeTransition(
+                        opacity: _in(0.52, 1.0),
+                        child: SlideTransition(
+                          position: Tween<Offset>(
+                            begin: const Offset(0, 0.25),
+                            end: Offset.zero,
+                          ).animate(_in(0.52, 1.0)),
+                          child: PrimaryButton(
+                            label: 'Login',
+                            icon: Icons.login_rounded,
+                            onPressed: () => _openAuth(AuthMode.login),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 8),
+                      FadeTransition(
+                        opacity: _in(0.64, 1.0),
+                        child: Row(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            const Text(
+                              'New to BoaMe?',
+                              style: TextStyle(color: kTextMuted, fontSize: 14),
+                            ),
+                            TextButton(
+                              onPressed: () => _openAuth(AuthMode.signUp),
+                              child: const Text(
+                                'Create an account',
+                                style: TextStyle(fontWeight: FontWeight.w700),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
                     ],
                   ),
                 ),

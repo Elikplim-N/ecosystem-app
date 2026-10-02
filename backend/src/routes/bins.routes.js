@@ -22,6 +22,8 @@ const createSchema = z.object({
   capacityKg: z.coerce.number().positive().max(100_000).optional(),
   sensorId: z.string().trim().max(64).optional(),
   fillPercent: z.coerce.number().min(0).max(100).optional(),
+  rejectedFillPercent: z.coerce.number().min(0).max(100).optional(),
+  collects: z.string().trim().min(2).max(60).optional(),
   notes: z.string().trim().max(1000).optional(),
 });
 
@@ -39,7 +41,8 @@ const listSchema = z.object({
 });
 
 const statusSchema = z.object({
-  fillPercent: z.coerce.number().min(0).max(100),
+  fillPercent: z.coerce.number().min(0).max(100).optional(),
+  rejectedFillPercent: z.coerce.number().min(0).max(100).optional(),
   disabled: z.boolean().optional(),
   note: z.string().trim().max(500).optional(),
 });
@@ -58,6 +61,8 @@ function present(b) {
     name: b.name,
     status: b.bin_state,
     fillLevel: Number(b.fill_percent),
+    rejectedFillLevel: Number(b.rejected_fill_percent ?? 0),
+    collects: b.collects ?? 'Plastic',
     capacityKg: Number(b.capacity_kg),
     address: b.address ?? null,
     latitude: b.latitude === null ? null : Number(b.latitude),
@@ -139,14 +144,17 @@ router.get(
       `select
          b.bin_state,
          count(*)::int as total,
-         count(*) filter (where b.created_by_id = $1)::int as mine
+         count(*) filter (where b.created_by_id = $1)::int as mine,
+         count(*) filter (where b.rejected_fill_percent >= 90
+                            and b.bin_state <> 'disabled')::int as rejected_full,
+         count(*) filter (where b.sensor_id is not null)::int as with_sensor
        from bins b
        ${req.user.role_id === 'admin' ? '' : 'where b.created_by_id = $1'}
        group by b.bin_state`,
       [req.user.id],
     );
 
-    const summary = { total: 0, mine_total: 0 };
+    const summary = { total: 0, mine_total: 0, rejected_full: 0, with_sensor: 0 };
     for (const state of ['available', 'filling', 'full', 'disabled']) {
       summary[state] = 0;
       summary[`${state}_mine`] = 0;
@@ -156,6 +164,8 @@ router.get(
       summary[`${r.bin_state}_mine`] = r.mine;
       summary.total += r.total;
       summary.mine_total += r.mine;
+      summary.rejected_full += r.rejected_full;
+      summary.with_sensor += r.with_sensor;
     }
     res.json({ summary });
   }),
@@ -206,13 +216,14 @@ router.post(
 
       const { rows } = await client.query(
         `insert into bins (code, name, address, latitude, longitude, capacity_kg,
-                           sensor_id, fill_percent, bin_state, status_source,
-                           created_by_id, created_by_role, notes)
-         values ($1,$2,$3,$4,$5,coalesce($6,50),$7,$8,$9,'manual',$10,$11,$12)
+                           sensor_id, fill_percent, rejected_fill_percent, collects,
+                           bin_state, status_source, created_by_id, created_by_role, notes)
+         values ($1,$2,$3,$4,$5,coalesce($6,50),$7,$8,$9,coalesce($10,'Plastic'),$11,'manual',$12,$13,$14)
          returning id`,
         [
           code, b.name, b.address ?? null, b.latitude ?? null, b.longitude ?? null,
-          b.capacityKg ?? null, b.sensorId ?? null, fill, stateForFill(fill), req.user.id,
+          b.capacityKg ?? null, b.sensorId ?? null, fill, b.rejectedFillPercent ?? 0,
+          b.collects ?? null, stateForFill(fill), req.user.id,
           req.user.role_id, b.notes ?? null,
         ],
       );
@@ -266,15 +277,18 @@ router.patch(
            capacity_kg = coalesce($6, capacity_kg),
            sensor_id = coalesce($7, sensor_id),
            notes = coalesce($8, notes),
-           fill_percent = $9,
-           bin_state = $10,
+           collects = coalesce($9, collects),
+           rejected_fill_percent = coalesce($10, rejected_fill_percent),
+           fill_percent = $11,
+           bin_state = $12,
            status_source = 'manual',
-           disabled_at = case when $10 = 'disabled' then now() else null end,
+           disabled_at = case when $12 = 'disabled' then now() else null end,
            last_reported_at = now()
          where id = $1`,
         [
           bin.id, b.name ?? null, b.address ?? null, b.latitude ?? null, b.longitude ?? null,
-          b.capacityKg ?? null, b.sensorId ?? null, b.notes ?? null, fill, state,
+          b.capacityKg ?? null, b.sensorId ?? null, b.notes ?? null, b.collects ?? null,
+          b.rejectedFillPercent ?? null, fill, state,
         ],
       );
 
@@ -305,25 +319,30 @@ router.post(
     assertCanEditBin(req.user, bin);
 
     const disabled = req.body.disabled ?? bin.bin_state === 'disabled';
-    const state = stateForFill(req.body.fillPercent, disabled);
+    // Either compartment may be reported on its own, so fall back to what the
+    // bin already holds rather than resetting the other level to zero.
+    const fill = req.body.fillPercent ?? Number(bin.fill_percent);
+    const rejectedFill = req.body.rejectedFillPercent ?? Number(bin.rejected_fill_percent ?? 0);
+    const state = stateForFill(fill, disabled);
 
     await withActor(req.user.id, async (client) => {
       await client.query(
         `update bins set
            fill_percent = $2,
-           bin_state = $3,
+           rejected_fill_percent = $3,
+           bin_state = $4,
            status_source = 'manual',
-           disabled_at = case when $3 = 'disabled' then now() else null end,
+           disabled_at = case when $4 = 'disabled' then now() else null end,
            last_reported_at = now()
          where id = $1`,
-        [bin.id, req.body.fillPercent, state],
+        [bin.id, fill, rejectedFill, state],
       );
 
       if (req.body.note) {
         await client.query(
           `insert into bin_status_events (bin_id, new_state, fill_percent, source, reported_by_id, note)
            values ($1, $2, $3, 'manual', $4, $5)`,
-          [bin.id, state, req.body.fillPercent, req.user.id, req.body.note],
+          [bin.id, state, fill, req.user.id, req.body.note],
         );
       }
 
@@ -363,6 +382,7 @@ router.post(
       await client.query(
         `update bins set
            fill_percent = 0,
+           rejected_fill_percent = 0,
            bin_state = 'available',
            status_source = 'manual',
            last_collected_at = now(),

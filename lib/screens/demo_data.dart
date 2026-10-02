@@ -1,4 +1,4 @@
-﻿/// Placeholder content so every screen can be reviewed before real Firebase
+/// Placeholder content so every screen can be reviewed before real Firebase
 /// data exists.
 ///
 /// Flip [kDemoMode] to false to hide all of it — every screen falls back to
@@ -77,20 +77,118 @@ class DemoNotification {
 // ============================================================
 
 const List<DemoUser> demoUsers = [
-  DemoUser(uid: 'd1', nickname: 'Amara Osei', avatar: '🌿', points: 1420, bottles: 268, weight: 214.5),
-  DemoUser(uid: 'd2', nickname: 'Thabo Nkosi', avatar: '🦁', points: 1180, bottles: 221, weight: 187.2),
-  DemoUser(uid: 'd3', nickname: 'Lerato Molefe', avatar: '🐢', points: 960, bottles: 184, weight: 152.8),
-  DemoUser(uid: 'd4', nickname: 'Chidi Eze', avatar: '⚽', points: 740, bottles: 149, weight: 121.4),
-  DemoUser(uid: 'd5', nickname: 'Naledi Dube', avatar: '🌻', points: 610, bottles: 132, weight: 104.9),
-  DemoUser(uid: 'd6', nickname: 'Kofi Mensah', avatar: '🚀', points: 520, bottles: 118, weight: 96.3),
-  DemoUser(uid: 'd7', nickname: 'Zanele Mbeki', avatar: '🐼', points: 430, bottles: 97, weight: 78.6),
-  DemoUser(uid: 'd8', nickname: 'Ibrahim Musa', avatar: '🦊', points: 355, bottles: 84, weight: 66.1),
-  DemoUser(uid: 'd9', nickname: 'Thandiwe Silva', avatar: '🌍', points: 280, bottles: 71, weight: 55.4),
-  DemoUser(uid: 'd10', nickname: 'Ravi Patel', avatar: '🎨', points: 195, bottles: 52, weight: 41.7),
-  DemoUser(uid: 'd11', nickname: 'Grace Mwangi', avatar: '🌻', points: 140, bottles: 38, weight: 29.3),
-  DemoUser(uid: 'd12', nickname: 'Peter Banda', avatar: '♻️', points: 95, bottles: 26, weight: 19.8),
-  DemoUser(uid: 'd13', nickname: 'Sara Chikwawa', avatar: '🐢', points: 60, bottles: 15, weight: 11.4),
-  DemoUser(uid: 'd14', nickname: 'Daniel Kalu', avatar: '🌱', points: 30, bottles: 8, weight: 5.9),
+  DemoUser(
+    uid: 'd1',
+    nickname: 'Amara Osei',
+    avatar: '🌿',
+    points: 1420,
+    bottles: 268,
+    weight: 214.5,
+  ),
+  DemoUser(
+    uid: 'd2',
+    nickname: 'Thabo Nkosi',
+    avatar: '🦁',
+    points: 1180,
+    bottles: 221,
+    weight: 187.2,
+  ),
+  DemoUser(
+    uid: 'd3',
+    nickname: 'Lerato Molefe',
+    avatar: '🐢',
+    points: 960,
+    bottles: 184,
+    weight: 152.8,
+  ),
+  DemoUser(
+    uid: 'd4',
+    nickname: 'Chidi Eze',
+    avatar: '⚽',
+    points: 740,
+    bottles: 149,
+    weight: 121.4,
+  ),
+  DemoUser(
+    uid: 'd5',
+    nickname: 'Naledi Dube',
+    avatar: '🌻',
+    points: 610,
+    bottles: 132,
+    weight: 104.9,
+  ),
+  DemoUser(
+    uid: 'd6',
+    nickname: 'Kofi Mensah',
+    avatar: '🚀',
+    points: 520,
+    bottles: 118,
+    weight: 96.3,
+  ),
+  DemoUser(
+    uid: 'd7',
+    nickname: 'Zanele Mbeki',
+    avatar: '🐼',
+    points: 430,
+    bottles: 97,
+    weight: 78.6,
+  ),
+  DemoUser(
+    uid: 'd8',
+    nickname: 'Ibrahim Musa',
+    avatar: '🦊',
+    points: 355,
+    bottles: 84,
+    weight: 66.1,
+  ),
+  DemoUser(
+    uid: 'd9',
+    nickname: 'Thandiwe Silva',
+    avatar: '🌍',
+    points: 280,
+    bottles: 71,
+    weight: 55.4,
+  ),
+  DemoUser(
+    uid: 'd10',
+    nickname: 'Ravi Patel',
+    avatar: '🎨',
+    points: 195,
+    bottles: 52,
+    weight: 41.7,
+  ),
+  DemoUser(
+    uid: 'd11',
+    nickname: 'Grace Mwangi',
+    avatar: '🌻',
+    points: 140,
+    bottles: 38,
+    weight: 29.3,
+  ),
+  DemoUser(
+    uid: 'd12',
+    nickname: 'Peter Banda',
+    avatar: '♻️',
+    points: 95,
+    bottles: 26,
+    weight: 19.8,
+  ),
+  DemoUser(
+    uid: 'd13',
+    nickname: 'Sara Chikwawa',
+    avatar: '🐢',
+    points: 60,
+    bottles: 15,
+    weight: 11.4,
+  ),
+  DemoUser(
+    uid: 'd14',
+    nickname: 'Daniel Kalu',
+    avatar: '🌱',
+    points: 30,
+    bottles: 8,
+    weight: 5.9,
+  ),
 ];
 
 const List<DemoReward> demoRewards = [
@@ -131,24 +229,56 @@ const List<DemoReward> demoRewards = [
 ];
 
 final List<DemoDeposit> demoDeposits = [
-  DemoDeposit(points: 24, weight: 1.4, bottleType: 'coloured', when: DateTime(2026, 9, 29, 14, 32)),
-  DemoDeposit(points: 16, weight: 0.9, bottleType: 'clear', when: DateTime(2026, 9, 28, 10, 5)),
-  DemoDeposit(points: 32, weight: 2.1, bottleType: 'coloured', when: DateTime(2026, 9, 26, 17, 48)),
-  DemoDeposit(points: 12, weight: 0.6, bottleType: 'clear', when: DateTime(2026, 9, 24, 8, 19)),
-  DemoDeposit(points: 28, weight: 1.8, bottleType: 'coloured', when: DateTime(2026, 9, 21, 19, 3)),
-  DemoDeposit(points: 14, weight: 0.8, bottleType: 'clear', when: DateTime(2026, 9, 19, 12, 40)),
+  DemoDeposit(
+    points: 24,
+    weight: 1.4,
+    bottleType: 'coloured',
+    when: DateTime(2026, 9, 29, 14, 32),
+  ),
+  DemoDeposit(
+    points: 16,
+    weight: 0.9,
+    bottleType: 'clear',
+    when: DateTime(2026, 9, 28, 10, 5),
+  ),
+  DemoDeposit(
+    points: 32,
+    weight: 2.1,
+    bottleType: 'coloured',
+    when: DateTime(2026, 9, 26, 17, 48),
+  ),
+  DemoDeposit(
+    points: 12,
+    weight: 0.6,
+    bottleType: 'clear',
+    when: DateTime(2026, 9, 24, 8, 19),
+  ),
+  DemoDeposit(
+    points: 28,
+    weight: 1.8,
+    bottleType: 'coloured',
+    when: DateTime(2026, 9, 21, 19, 3),
+  ),
+  DemoDeposit(
+    points: 14,
+    weight: 0.8,
+    bottleType: 'clear',
+    when: DateTime(2026, 9, 19, 12, 40),
+  ),
 ];
 
 final List<DemoNotification> demoNotifications = [
   DemoNotification(
     title: 'Reward ready for pickup',
-    body: 'Your Eco Tote Bag redemption was approved and is waiting at the kiosk.',
+    body:
+        'Your Eco Tote Bag redemption was approved and is waiting at the kiosk.',
     read: false,
     when: DateTime(2026, 9, 30, 9, 12),
   ),
   DemoNotification(
     title: 'You moved up 3 places',
-    body: 'You are now ranked 12th on the leaderboard. Keep recycling to climb.',
+    body:
+        'You are now ranked 12th on the leaderboard. Keep recycling to climb.',
     read: false,
     when: DateTime(2026, 9, 29, 16, 45),
   ),

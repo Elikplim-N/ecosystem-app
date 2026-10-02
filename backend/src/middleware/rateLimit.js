@@ -44,4 +44,20 @@ export const deviceLimiter = rateLimit({
   message: jsonMessage('Reporting too frequently.'),
 });
 
-export default { loginLimiter, registerLimiter, apiLimiter, deviceLimiter };
+/**
+ * The contact form, which is deliberately reachable without a session.
+ *
+ * Being unauthenticated means the general per-IP ceiling is the only thing
+ * standing between the database and someone who found the endpoint, so this
+ * is tighter than apiLimiter and ignores successes.
+ */
+export const contactLimiter = rateLimit({
+  windowMs: 60 * 60 * 1000,
+  limit: 5,
+  standardHeaders: 'draft-7',
+  legacyHeaders: false,
+  skipSuccessfulRequests: true,
+  message: jsonMessage('Too many messages sent. Try again in an hour.'),
+});
+
+export default { loginLimiter, registerLimiter, apiLimiter, deviceLimiter, contactLimiter };

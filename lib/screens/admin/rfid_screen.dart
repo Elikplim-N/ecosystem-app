@@ -131,7 +131,8 @@ class _RfidScreenState extends State<RfidScreen> {
                   const SizedBox(width: 10),
                   Expanded(
                     child: StatPill(
-                      value: '${all.where((c) => c.state == RfidState.available).length}',
+                      value:
+                          '${all.where((c) => c.state == RfidState.available).length}',
                       label: 'Spare',
                       icon: Icons.inventory_2_rounded,
                       accent: kAccentOrange,
@@ -161,10 +162,12 @@ class _RfidScreenState extends State<RfidScreen> {
               if (visible.isEmpty)
                 EmptyState(
                   icon: Icons.credit_card_off_rounded,
-                  title: all.isEmpty ? 'No cards registered' : 'Nothing matches',
+                  title: all.isEmpty
+                      ? 'No cards registered'
+                      : 'Nothing matches',
                   message: all.isEmpty
                       ? 'Scan or type a card UID to register it, then link it '
-                          'to a member.'
+                            'to a member.'
                       : 'Try another filter or search term.',
                   action: all.isEmpty
                       ? ElevatedButton.icon(
@@ -201,7 +204,9 @@ class _RfidScreenState extends State<RfidScreen> {
                           ? () async {
                               await _repo.setCardState(
                                 card.id,
-                                card.isLinked ? RfidState.linked : RfidState.available,
+                                card.isLinked
+                                    ? RfidState.linked
+                                    : RfidState.available,
                               );
                               if (context.mounted) {
                                 showToast(context, 'Card restored');
@@ -265,7 +270,9 @@ class _CardTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final role = card.holderRole == null ? null : AppRole.fromString(card.holderRole!);
+    final role = card.holderRole == null
+        ? null
+        : AppRole.fromString(card.holderRole!);
     final accent = _stateColor;
 
     return SoftCard(
@@ -278,7 +285,11 @@ class _CardTile extends StatelessWidget {
           Row(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _TagGraphic(tag: card.tag, color: accent, dimmed: card.state == RfidState.lost),
+              _TagGraphic(
+                tag: card.tag,
+                color: accent,
+                dimmed: card.state == RfidState.lost,
+              ),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -309,7 +320,11 @@ class _CardTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 9),
                     if (role != null)
-                      RolePill(label: role.label, color: role.solidColor, icon: role.icon)
+                      RolePill(
+                        label: role.label,
+                        color: role.solidColor,
+                        icon: role.icon,
+                      )
                     else
                       const Text(
                         'No member linked yet',
@@ -330,7 +345,9 @@ class _CardTile extends StatelessWidget {
             children: [
               Expanded(
                 child: _MiniAction(
-                  icon: card.isLinked ? Icons.person_off_rounded : Icons.link_rounded,
+                  icon: card.isLinked
+                      ? Icons.person_off_rounded
+                      : Icons.link_rounded,
                   label: card.isLinked ? 'Unlink' : 'Link',
                   onTap: card.isLinked ? onUnlink! : onAssign,
                   tint: kMetricTeal,
@@ -340,7 +357,9 @@ class _CardTile extends StatelessWidget {
               const SizedBox(width: 8),
               Expanded(
                 child: _MiniAction(
-                  icon: onRestore != null ? Icons.restore_rounded : Icons.report_problem_rounded,
+                  icon: onRestore != null
+                      ? Icons.restore_rounded
+                      : Icons.report_problem_rounded,
                   label: onRestore != null ? 'Restore' : 'Lost',
                   onTap: onRestore ?? onMarkLost!,
                   tint: kMetricAmber,
@@ -419,7 +438,11 @@ class _MiniAction extends StatelessWidget {
 
 /// Stylised card face showing the tag the way it is printed.
 class _TagGraphic extends StatelessWidget {
-  const _TagGraphic({required this.tag, required this.color, this.dimmed = false});
+  const _TagGraphic({
+    required this.tag,
+    required this.color,
+    this.dimmed = false,
+  });
 
   final String tag;
   final Color color;
@@ -538,7 +561,11 @@ class _PickMemberSheetState extends State<_PickMemberSheet> {
                   ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close_rounded, size: 20, color: kTextMuted),
+                    icon: const Icon(
+                      Icons.close_rounded,
+                      size: 20,
+                      color: kTextMuted,
+                    ),
                   ),
                 ],
               ),
@@ -558,9 +585,13 @@ class _PickMemberSheetState extends State<_PickMemberSheet> {
                     }
                     final all = snapshot.data ?? const <Member>[];
                     final matches = all
-                        .where((m) =>
-                            m.matches(_controller.text) &&
-                            !widget.excludeRfids.contains((m.rfidUid ?? '').trim()))
+                        .where(
+                          (m) =>
+                              m.matches(_controller.text) &&
+                              !widget.excludeRfids.contains(
+                                (m.rfidUid ?? '').trim(),
+                              ),
+                        )
                         .toList();
 
                     if (matches.isEmpty) {
@@ -578,7 +609,10 @@ class _PickMemberSheetState extends State<_PickMemberSheet> {
                         final member = matches[index];
                         return SoftCard(
                           onTap: () => Navigator.pop(context, member),
-                          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 12,
+                          ),
                           radius: 16,
                           child: Row(
                             children: [
@@ -700,12 +734,21 @@ class _RegisterCardDialogState extends State<_RegisterCardDialog> {
       contentPadding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
       title: Row(
         children: [
-          const IconChip(icon: Icons.add_card_rounded, size: 38, iconSize: 19, radius: 12),
+          const IconChip(
+            icon: Icons.add_card_rounded,
+            size: 38,
+            iconSize: 19,
+            radius: 12,
+          ),
           const SizedBox(width: 12),
           const Expanded(
             child: Text(
               'Register an RFID card',
-              style: TextStyle(fontSize: 17.5, fontWeight: FontWeight.w900, color: kTextDark),
+              style: TextStyle(
+                fontSize: 17.5,
+                fontWeight: FontWeight.w900,
+                color: kTextDark,
+              ),
             ),
           ),
         ],
@@ -752,7 +795,10 @@ class _RegisterCardDialogState extends State<_RegisterCardDialog> {
                   filled: true,
                   fillColor: kBackground,
                   isDense: true,
-                  contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 14,
+                  ),
                   border: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: const BorderSide(color: kBeige),
@@ -760,12 +806,17 @@ class _RegisterCardDialogState extends State<_RegisterCardDialog> {
                   enabledBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
                     borderSide: BorderSide(
-                      color: valid ? kPrimaryColor.withValues(alpha: 0.5) : kBeige,
+                      color: valid
+                          ? kPrimaryColor.withValues(alpha: 0.5)
+                          : kBeige,
                     ),
                   ),
                   focusedBorder: OutlineInputBorder(
                     borderRadius: BorderRadius.circular(14),
-                    borderSide: const BorderSide(color: kPrimaryColor, width: 1.6),
+                    borderSide: const BorderSide(
+                      color: kPrimaryColor,
+                      width: 1.6,
+                    ),
                   ),
                 ),
                 inputFormatters: [
@@ -780,7 +831,9 @@ class _RegisterCardDialogState extends State<_RegisterCardDialog> {
               Row(
                 children: [
                   Icon(
-                    valid ? Icons.check_circle_rounded : Icons.info_outline_rounded,
+                    valid
+                        ? Icons.check_circle_rounded
+                        : Icons.info_outline_rounded,
                     size: 15,
                     color: valid ? kPrimaryColor : kTextMuted,
                   ),
@@ -808,7 +861,11 @@ class _RegisterCardDialogState extends State<_RegisterCardDialog> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const Eyebrow('Will be saved as', color: kPrimaryColor, fontSize: 9.5),
+                      const Eyebrow(
+                        'Will be saved as',
+                        color: kPrimaryColor,
+                        fontSize: 9.5,
+                      ),
                       const SizedBox(height: 4),
                       Text(
                         preview,

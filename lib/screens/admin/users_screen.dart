@@ -1,5 +1,4 @@
-﻿import 'package:firebase_auth/firebase_auth.dart';
-import 'package:cloud_firestore/cloud_firestore.dart';
+import '../../services/api_client.dart';
 import 'package:flutter/material.dart';
 import '../../data/user_repository.dart';
 import '../../models/app_role.dart';
@@ -57,8 +56,9 @@ class _UsersScreenState extends State<UsersScreen> {
 
           final all = snapshot.data ?? const <Member>[];
           final pending = all.where((m) => m.isPendingApplication).length;
-          final ambassadors =
-              all.where((m) => m.role == AppRole.ambassador).length;
+          final ambassadors = all
+              .where((m) => m.role == AppRole.ambassador)
+              .length;
           final disabled = all.where((m) => m.accountDisabled).length;
 
           final visible = all.where((member) {
@@ -115,7 +115,11 @@ class _UsersScreenState extends State<UsersScreen> {
                       tint: kMetricAmberTint,
                       accent: kMetricAmber,
                       onTap: pending > 0
-                          ? () => setState(() => _filter = _filter == 'pending' ? 'all' : 'pending')
+                          ? () => setState(
+                              () => _filter = _filter == 'pending'
+                                  ? 'all'
+                                  : 'pending',
+                            )
                           : null,
                     ),
                   ),
@@ -210,11 +214,7 @@ class _MemberTile extends StatelessWidget {
                 RolePill(label: role.label, color: accent, icon: role.icon),
                 const Spacer(),
                 if (flag != null)
-                  StatusChip(
-                    label: flagLabel!,
-                    color: flag,
-                    dense: true,
-                  ),
+                  StatusChip(label: flagLabel!, color: flag, dense: true),
               ],
             ),
             const SizedBox(height: 11),
@@ -227,9 +227,15 @@ class _MemberTile extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: role.tint,
                     shape: BoxShape.circle,
-                    border: Border.all(color: accent.withValues(alpha: 0.3), width: 1.6),
+                    border: Border.all(
+                      color: accent.withValues(alpha: 0.3),
+                      width: 1.6,
+                    ),
                   ),
-                  child: Text(member.avatarIcon, style: const TextStyle(fontSize: 19)),
+                  child: Text(
+                    member.avatarIcon,
+                    style: const TextStyle(fontSize: 19),
+                  ),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
@@ -249,13 +255,17 @@ class _MemberTile extends StatelessWidget {
                       ),
                       const SizedBox(height: 2),
                       Text(
-                        member.phone.trim().isEmpty ? 'No phone number' : member.phone.trim(),
+                        member.phone.trim().isEmpty
+                            ? 'No phone number'
+                            : member.phone.trim(),
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 12.5,
                           fontWeight: FontWeight.w600,
-                          color: member.phone.trim().isEmpty ? kTextMuted : kTextDark.withValues(alpha: 0.7),
+                          color: member.phone.trim().isEmpty
+                              ? kTextMuted
+                              : kTextDark.withValues(alpha: 0.7),
                         ),
                       ),
                     ],
@@ -287,7 +297,11 @@ class _MemberTile extends StatelessWidget {
                     ),
                   ],
                 ),
-                const Icon(Icons.chevron_right_rounded, size: 20, color: kTextMuted),
+                const Icon(
+                  Icons.chevron_right_rounded,
+                  size: 20,
+                  color: kTextMuted,
+                ),
               ],
             ),
           ],
@@ -354,30 +368,80 @@ class _MemberSheetState extends State<_MemberSheet> {
     showToast(context, enabling ? 'Account enabled' : 'Account disabled');
   }
 
+  /// Soft-deletes an account.
+  ///
+  /// The API requires a written reason and records it in the audit log, so
+  /// this asks for one instead of taking an empty string. The old version
+  /// deleted the Auth user and the Firestore document as two separate steps,
+  /// which could leave a live login attached to a missing profile.
   Future<void> _deleteAccount() async {
+    final reason = await _askForReason();
+    if (reason == null || !mounted) return;
+
     final ok = await confirmDialog(
       context,
       title: 'Delete ${_member.displayName}?',
       message:
-          'This signs the account out of Firebase Auth and deletes its user '
-          'record. Points and deposit history cannot be recovered.',
+          'This revokes every session for the account immediately. Points '
+          'and deposit history are kept for the audit trail and cannot be '
+          'recovered.',
       confirmLabel: 'DELETE',
     );
     if (!ok) return;
+
     try {
-      await FirebaseAuth.instance.currentUser?.delete();
-    } catch (_) {
-      // Deleting another account needs the Admin SDK, not available on the
-      // client. The document is still removed below.
-    }
-    try {
-      await FirebaseFirestore.instance.collection('users').doc(_member.uid).delete();
+      await UserRepository().deleteUser(_member.uid, reason: reason);
       if (!mounted) return;
       Navigator.pop(context);
       showToast(context, 'Member record deleted');
-    } catch (e) {
-      if (mounted) showToast(context, 'Could not delete: $e');
+    } on ApiException catch (e) {
+      if (mounted) {
+        showToast(
+          context,
+          e.isUserFacing ? e.message : 'Could not delete that account',
+        );
+      }
     }
+  }
+
+  /// Returns null if the admin cancels or types too little to be useful.
+  Future<String?> _askForReason() async {
+    final controller = TextEditingController();
+
+    final reason = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Reason for deleting'),
+        content: TextField(
+          controller: controller,
+          maxLength: 240,
+          maxLines: 3,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'e.g. duplicate account created in error',
+            border: OutlineInputBorder(),
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext),
+            child: const Text('CANCEL'),
+          ),
+          ElevatedButton(
+            onPressed: () =>
+                Navigator.pop(dialogContext, controller.text.trim()),
+            child: const Text('CONTINUE'),
+          ),
+        ],
+      ),
+    );
+
+    controller.dispose();
+
+    // The API requires at least 3 characters; catch it here so the admin gets
+    // told before the dialog closes rather than from an error afterwards.
+    if (reason == null || reason.length < 3) return null;
+    return reason;
   }
 
   @override
@@ -406,9 +470,15 @@ class _MemberSheetState extends State<_MemberSheet> {
                     decoration: BoxDecoration(
                       color: role.tint,
                       shape: BoxShape.circle,
-                      border: Border.all(color: accent.withValues(alpha: 0.35), width: 2),
+                      border: Border.all(
+                        color: accent.withValues(alpha: 0.35),
+                        width: 2,
+                      ),
                     ),
-                    child: Text(_member.avatarIcon, style: const TextStyle(fontSize: 26)),
+                    child: Text(
+                      _member.avatarIcon,
+                      style: const TextStyle(fontSize: 26),
+                    ),
                   ),
                   const SizedBox(width: 14),
                   Expanded(
@@ -452,14 +522,18 @@ class _MemberSheetState extends State<_MemberSheet> {
               Container(
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 decoration: BoxDecoration(
-                    color: kMetricTealTint,
-                    borderRadius: BorderRadius.circular(20),
-                    border: Border.all(color: kMetricTeal.withValues(alpha: 0.28)),
-
+                  color: kMetricTealTint,
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(
+                    color: kMetricTeal.withValues(alpha: 0.28),
+                  ),
                 ),
                 child: Row(
                   children: [
-                    _SheetStat(label: 'Points', value: _grouped(_member.points)),
+                    _SheetStat(
+                      label: 'Points',
+                      value: _grouped(_member.points),
+                    ),
                     _SheetDivider(),
                     _SheetStat(label: 'Bottles', value: '${_member.bottles}'),
                     _SheetDivider(),
@@ -477,12 +551,26 @@ class _MemberSheetState extends State<_MemberSheet> {
                 padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
                 child: Column(
                   children: [
-                    _SheetRow(Icons.phone_rounded, 'Phone', _member.phone.trim().isEmpty ? 'Not set' : _member.phone.trim()),
-                    _SheetRow(Icons.email_rounded, 'Email', _member.email.trim().isEmpty ? 'Not set' : _member.email.trim()),
+                    _SheetRow(
+                      Icons.phone_rounded,
+                      'Phone',
+                      _member.phone.trim().isEmpty
+                          ? 'Not set'
+                          : _member.phone.trim(),
+                    ),
+                    _SheetRow(
+                      Icons.email_rounded,
+                      'Email',
+                      _member.email.trim().isEmpty
+                          ? 'Not set'
+                          : _member.email.trim(),
+                    ),
                     _SheetRow(
                       Icons.contactless_rounded,
                       'RFID card',
-                      (_member.rfidUid ?? '').isEmpty ? 'Not linked' : _member.rfidUid!,
+                      (_member.rfidUid ?? '').isEmpty
+                          ? 'Not linked'
+                          : _member.rfidUid!,
                     ),
                     if ((_member.area ?? '').isNotEmpty)
                       _SheetRow(Icons.place_rounded, 'Area', _member.area!),
@@ -496,7 +584,11 @@ class _MemberSheetState extends State<_MemberSheet> {
                   padding: const EdgeInsets.fromLTRB(16, 14, 16, 14),
                   child: Text(
                     _member.motivation!,
-                    style: const TextStyle(fontSize: 13.5, color: kTextDark, height: 1.5),
+                    style: const TextStyle(
+                      fontSize: 13.5,
+                      color: kTextDark,
+                      height: 1.5,
+                    ),
                   ),
                 ),
               ],
@@ -505,7 +597,11 @@ class _MemberSheetState extends State<_MemberSheet> {
               if (!widget.isSelf) ...[
                 const Text(
                   'Account role',
-                  style: TextStyle(fontSize: 15.5, fontWeight: FontWeight.w800, color: kTextDark),
+                  style: TextStyle(
+                    fontSize: 15.5,
+                    fontWeight: FontWeight.w800,
+                    color: kTextDark,
+                  ),
                 ),
                 const SizedBox(height: 4),
                 const Text(
@@ -516,7 +612,8 @@ class _MemberSheetState extends State<_MemberSheet> {
                 Row(
                   children: [
                     for (final option in AppRole.values) ...[
-                      if (option != AppRole.values.first) const SizedBox(width: 10),
+                      if (option != AppRole.values.first)
+                        const SizedBox(width: 10),
                       Expanded(
                         child: _RoleOption(
                           role: option,
@@ -532,7 +629,9 @@ class _MemberSheetState extends State<_MemberSheet> {
                   icon: _member.accountDisabled
                       ? Icons.play_circle_rounded
                       : Icons.pause_circle_rounded,
-                  label: _member.accountDisabled ? 'Enable account' : 'Disable account',
+                  label: _member.accountDisabled
+                      ? 'Enable account'
+                      : 'Disable account',
                   tint: _member.accountDisabled ? kPrimaryColor : kMetricAmber,
                   onTap: _toggleDisabled,
                 ),
@@ -552,12 +651,20 @@ class _MemberSheetState extends State<_MemberSheet> {
                   ),
                   child: const Row(
                     children: [
-                      Icon(Icons.info_rounded, size: 18, color: kColouredBottle),
+                      Icon(
+                        Icons.info_rounded,
+                        size: 18,
+                        color: kColouredBottle,
+                      ),
                       SizedBox(width: 10),
                       Expanded(
                         child: Text(
                           'This is your own account, so role and account changes are disabled here.',
-                          style: TextStyle(fontSize: 12.5, color: kTextDark, height: 1.4),
+                          style: TextStyle(
+                            fontSize: 12.5,
+                            color: kTextDark,
+                            height: 1.4,
+                          ),
                         ),
                       ),
                     ],
@@ -614,13 +721,21 @@ class _SheetStat extends StatelessWidget {
 class _SheetDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return Container(width: 1, height: 30, color: kDeepMintInk.withValues(alpha: 0.14));
+    return Container(
+      width: 1,
+      height: 30,
+      color: kDeepMintInk.withValues(alpha: 0.14),
+    );
   }
 }
 
 /// One selectable role in the "Account role" picker.
 class _RoleOption extends StatelessWidget {
-  const _RoleOption({required this.role, required this.selected, required this.onTap});
+  const _RoleOption({
+    required this.role,
+    required this.selected,
+    required this.onTap,
+  });
 
   final AppRole role;
   final bool selected;
@@ -681,6 +796,7 @@ class _RoleOption extends StatelessWidget {
     );
   }
 }
+
 class _SheetRow extends StatelessWidget {
   const _SheetRow(this.icon, this.label, this.value);
 
@@ -701,7 +817,10 @@ class _SheetRow extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: const TextStyle(fontSize: 12, color: kTextMuted)),
+                Text(
+                  label,
+                  style: const TextStyle(fontSize: 12, color: kTextMuted),
+                ),
                 const SizedBox(height: 2),
                 Text(
                   value,

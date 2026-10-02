@@ -14,6 +14,8 @@ import ambassadorRoutes from './routes/ambassador.routes.js';
 import rewardRoutes from './routes/rewards.routes.js';
 import adminRoutes from './routes/admin.routes.js';
 import deviceRoutes from './routes/devices.routes.js';
+import notificationRoutes from './routes/notifications.routes.js';
+import contactRoutes from './routes/contact.routes.js';
 
 /**
  * Every mounted router, in one place.
@@ -32,6 +34,9 @@ export const ROUTE_MODULES = [
   ['/api/rewards', rewardRoutes],
   ['/api/admin', adminRoutes],
   ['/api/devices', deviceRoutes],
+  ['/api/notifications', notificationRoutes],
+  // The contact form. Deliberately not session-gated - see the route module.
+  ['/api/contact', contactRoutes],
 ];
 
 export function createApp() {
@@ -48,11 +53,18 @@ export function createApp() {
   // Access-Control-Allow-Credentials is not needed. Origins are listed
   // explicitly; '*' is never allowed because that would let any site call
   // this API with a stolen token.
+  //
+  // `flutter run -d chrome` picks a random port every launch, so pinning one
+  // port in CORS_ORIGINS makes the web build fail with a confusing preflight
+  // error. In development we therefore accept any loopback port. That is still
+  // same-machine only - a request from another host is rejected below.
+  const isLoopback = (url) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/.test(url);
+
   app.use(
     cors({
       origin(origin, callback) {
         if (!origin) return callback(null, true); // curl, native app, health checks
-        if (config.corsOrigins.length === 0 && !config.isProduction) return callback(null, true);
+        if (!config.isProduction && isLoopback(origin)) return callback(null, true);
         if (config.corsOrigins.includes(origin)) return callback(null, true);
         return callback(new Error(`Origin ${origin} is not allowed.`));
       },

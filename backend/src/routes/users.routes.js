@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { many, one, query, withActor } from '../db.js';
+import { many, one, pool, query, withActor } from '../db.js';
 import { AppError } from '../errors.js';
 import { validate } from '../lib/validate.js';
 import asyncHandler from '../lib/asyncHandler.js';
 import { requireAuth, requireRole, requireSelfOrAdmin } from '../middleware/auth.js';
+import { verifyPassword } from '../services/authService.js';
 import { writeAudit } from '../services/auditService.js';
 
 const router = Router();
@@ -15,6 +16,16 @@ const updateMeSchema = z.object({
   nickname: z.string().trim().min(2).max(40).optional(),
   email: z.string().trim().email().optional().or(z.literal('').transform(() => null)),
   avatarIcon: z.string().trim().max(8).optional(),
+});
+
+// Changing the phone number is a separate endpoint rather than another field
+// on PATCH /me, because it is the one profile edit that has to prove the
+// current password. Firebase's reauthenticateWithCredential did that for the
+// old client; reimplementing it here is what stops anyone who walks up to an
+// unlocked handset from moving an account to their own number.
+const changePhoneSchema = z.object({
+  phone: z.string().trim().min(7).max(24),
+  currentPassword: z.string().min(1, 'Confirm your current password.'),
 });
 
 function present(u) {
@@ -58,6 +69,49 @@ router.patch(
        returning *`,
       [req.user.id, b.name ?? null, b.nickname ?? null, 'email' in b, b.email ?? null, b.avatarIcon ?? null],
     );
+    res.json({ user: present(row) });
+  }),
+);
+
+/**
+ * POST /api/users/me/phone - change your own phone number.
+ *
+ * Requires the current password, and refuses a number already in use.
+ */
+router.post(
+  '/me/phone',
+  requireAuth(),
+  validate({ body: changePhoneSchema }),
+  asyncHandler(async (req, res) => {
+    const account = await one('select id, phone, password_hash from users where id = $1', [
+      req.user.id,
+    ]);
+    if (!account) throw AppError.notFound('User');
+
+    const ok = await verifyPassword(account.password_hash, req.body.currentPassword);
+    if (!ok) throw AppError.invalidCredentials();
+
+    const clash = await one('select id from users where phone = $1 and id <> $2', [
+      req.body.phone,
+      req.user.id,
+    ]);
+    if (clash) throw AppError.conflict('That phone number is already registered.');
+
+    const row = await one(
+      'update users set phone = $2 where id = $1 returning *',
+      [req.user.id, req.body.phone],
+    );
+
+    // Outside a transaction here: nothing above needs to be rolled back
+    // together, so a failed audit write must not undo the phone change.
+    await writeAudit(pool, {
+      actorId: req.user.id,
+      action: 'user.phone_changed',
+      entityType: 'user',
+      entityId: req.user.id,
+      details: { from: account.phone, to: row.phone },
+    });
+
     res.json({ user: present(row) });
   }),
 );

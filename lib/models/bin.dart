@@ -1,6 +1,6 @@
-import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import '../screens/design_system.dart';
+import 'json_readers.dart';
 
 /// Operational state of a recycling bin.
 enum BinStatus {
@@ -153,65 +153,73 @@ class Bin {
 
   bool get isManual => !hasSensor;
 
-  factory Bin.fromDocument(DocumentSnapshot<dynamic> snap) {
-    final data = (snap.data() as Map<String, dynamic>?) ?? const {};
-
-    double readDouble(Object? v) {
-      if (v is num) return v.toDouble();
-      if (v is String) return double.tryParse(v) ?? 0;
-      return 0;
-    }
-
-    DateTime? readDate(Object? v) => v is Timestamp ? v.toDate() : null;
+  factory Bin.fromJson(Map<String, dynamic> data) {
+    final capacity = readDouble(data['capacityKg']);
 
     return Bin(
-      id: snap.id,
-      code: (data['code'] ?? '').toString(),
-      name: (data['name'] ?? 'Unnamed bin').toString(),
+      id: readString(data['id']),
+      code: readString(data['code']),
+      name: readString(data['name'], 'Unnamed bin'),
       status: BinStatus.fromString(data['status']),
-      fillLevel: readDouble(data['fillLevel']).clamp(0, 100),
-      rejectedFillLevel: readDouble(data['rejectedFillLevel']).clamp(0, 100),
-      collects: (data['collects'] ?? 'Plastic').toString(),
+      fillLevel: readPercent(data['fillLevel']),
+      rejectedFillLevel: readPercent(data['rejectedFillLevel']),
+      collects: readString(data['collects'], 'Plastic'),
       latitude: readDouble(data['latitude'] ?? data['lat']),
       longitude: readDouble(data['longitude'] ?? data['lng']),
-      address: (data['address'] ?? '').toString(),
-      sensorId: data['sensorId']?.toString(),
-      hasSensor: data['hasSensor'] == true,
-      capacityKg: readDouble(data['capacityKg']).clamp(0, 100000) == 0
-          ? 50
-          : readDouble(data['capacityKg']),
-      lastCollected: readDate(data['lastCollectedAt']),
+      address: readString(data['address']),
+      sensorId: readNullableString(data['sensorId']),
+      hasSensor: readBool(data['hasSensor']),
+      capacityKg: capacity <= 0 ? 50 : capacity,
+      lastCollected: readDate(data['lastCollectedAt'] ?? data['lastCollected']),
       updatedAt: readDate(data['updatedAt'] ?? data['createdAt']),
-      createdById: data['createdById']?.toString(),
-      createdByRole: data['createdByRole']?.toString(),
-      createdByName: data['createdByName']?.toString(),
-      notes: data['notes']?.toString(),
+      createdById: readNullableString(data['createdById']),
+      createdByRole: readNullableString(data['createdByRole']),
+      createdByName: readNullableString(data['createdByName']),
+      notes: readNullableString(data['notes']),
     );
   }
 
-  /// Firestore payload. Keeps sensor-owned fields separate so a manual
-  /// edit never clobbers what the device reported.
-  Map<String, dynamic> toDocument() {
+  /// Body for POST /api/bins. [id] is ignored there — the server assigns it.
+  Map<String, dynamic> toRequest() {
     return {
       'code': code,
       'name': name,
-      'status': status.id,
-      'fillLevel': fillLevel,
-      'rejectedFillLevel': rejectedFillLevel,
       'collects': collects,
+      'fillPercent': fillLevel,
+      'rejectedFillPercent': rejectedFillLevel,
       'latitude': latitude,
       'longitude': longitude,
       'address': address,
       'sensorId': sensorId,
-      'hasSensor': hasSensor,
       'capacityKg': capacityKg,
-      'lastCollectedAt': lastCollected == null ? null : Timestamp.fromDate(lastCollected!),
-      'updatedAt': FieldValue.serverTimestamp(),
-      'createdById': createdById,
-      'createdByRole': createdByRole,
-      'createdByName': createdByName,
-      'notes': notes,
+      if (notes != null) 'notes': notes,
     };
+  }
+
+  /// Body for PATCH /api/bins/:id.
+  ///
+  /// Returns null when there is nothing to send, so the caller can skip the
+  /// request entirely instead of sending a no-op update the server would audit.
+  Map<String, dynamic>? toPatch(Bin previous) {
+    final body = <String, dynamic>{};
+
+    void put(String key, Object? value, Object? old) {
+      if (value != old) body[key] = value;
+    }
+
+    put('name', name, previous.name);
+    put('collects', collects, previous.collects);
+    put('fillPercent', fillLevel, previous.fillLevel);
+    put('rejectedFillPercent', rejectedFillLevel, previous.rejectedFillLevel);
+    put('latitude', latitude, previous.latitude);
+    put('longitude', longitude, previous.longitude);
+    put('address', address, previous.address);
+    put('sensorId', sensorId, previous.sensorId);
+    put('capacityKg', capacityKg, previous.capacityKg);
+    put('notes', notes, previous.notes);
+    put('disabled', isActive ? null : true, previous.isActive ? null : true);
+
+    return body.isEmpty ? null : body;
   }
 
   /// Short human summary used in lists and map callouts.

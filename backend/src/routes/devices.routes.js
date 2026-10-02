@@ -27,6 +27,8 @@ const router = Router();
 const reportSchema = z.object({
   sensorId: z.string().trim().min(2).max(64),
   fillPercent: z.coerce.number().min(0).max(100),
+  // Reported on its own by a bin with a second sensor in the rejected bay.
+  rejectedFillPercent: z.coerce.number().min(0).max(100).optional(),
   batteryPercent: z.coerce.number().min(0).max(100).optional(),
   recordedAt: z.coerce.date().optional(),
 });
@@ -58,24 +60,26 @@ router.post(
     // A disabled bin stays disabled even while reporting: hardware should not
     // silently bring a bin back online that an admin took out of service.
     const state = stateForFill(fillPercent, bin.bin_state === 'disabled');
+    const rejectedFill = req.body.rejectedFillPercent ?? Number(bin.rejected_fill_percent ?? 0);
 
     const updated = await withActor(null, async (client) => {
       const { rows } = await client.query(
         `update bins set
            fill_percent = $2,
-           bin_state = $3,
+           rejected_fill_percent = $3,
+           bin_state = $4,
            status_source = 'sensor',
-           last_reported_at = coalesce($4, now())
+           last_reported_at = coalesce($5, now())
          where id = $1
-         returning id, code, name, bin_state, fill_percent, status_source, last_reported_at`,
-        [bin.id, fillPercent, state, req.body.recordedAt ?? null],
+         returning id, code, name, bin_state, fill_percent, rejected_fill_percent, status_source, last_reported_at`,
+        [bin.id, fillPercent, rejectedFill, state, req.body.recordedAt ?? null],
       );
       await writeAudit(client, {
         actorId: null,
         action: 'bin.sensor_reported',
         entityType: 'bin',
         entityId: bin.id,
-        details: { sensorId, fillPercent, state },
+        details: { sensorId, fillPercent, rejectedFillPercent: rejectedFill, state },
       });
       return rows[0];
     });
@@ -87,6 +91,7 @@ router.post(
         code: updated.code,
         status: updated.bin_state,
         fillLevel: Number(updated.fill_percent),
+        rejectedFillLevel: Number(updated.rejected_fill_percent),
         source: updated.status_source,
       },
     });
@@ -98,7 +103,7 @@ router.get(
   '/bins',
   asyncHandler(async (_req, res) => {
     const rows = await many(
-      `select id, code, name, sensor_id, bin_state, fill_percent, status_source, last_reported_at
+      `select id, code, name, sensor_id, bin_state, fill_percent, rejected_fill_percent, status_source, last_reported_at
          from bins where sensor_id is not null order by code`,
     );
     res.json({
@@ -109,6 +114,7 @@ router.get(
         sensorId: b.sensor_id,
         status: b.bin_state,
         fillLevel: Number(b.fill_percent),
+        rejectedFillLevel: Number(b.rejected_fill_percent ?? 0),
         source: b.status_source,
         lastReportedAt: b.last_reported_at,
       })),

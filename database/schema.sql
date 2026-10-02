@@ -218,8 +218,16 @@ CREATE TABLE bins (
 
     bin_state       bin_state NOT NULL DEFAULT 'available',
     status_source   status_source NOT NULL DEFAULT 'manual',
+    -- The accepted compartment. This is the one bin_state is derived from.
     fill_percent    numeric(5,2) NOT NULL DEFAULT 0
                         CHECK (fill_percent >= 0 AND fill_percent <= 100),
+    -- The rejected compartment beside it, fed by its own sensor. Kept
+    -- separate from fill_percent because filling the wrong compartment does
+    -- not make a bin full - it makes the sorting wrong.
+    rejected_fill_percent numeric(5,2) NOT NULL DEFAULT 0
+                        CHECK (rejected_fill_percent >= 0 AND rejected_fill_percent <= 100),
+    -- What the bin is for, e.g. 'Plastic' or 'Glass'.
+    collects        text NOT NULL DEFAULT 'Plastic',
     capacity_kg     numeric(10,2) NOT NULL DEFAULT 50 CHECK (capacity_kg > 0),
 
     address         text,
@@ -409,6 +417,11 @@ CREATE TRIGGER bins_log_state_change
 CREATE TABLE rewards (
     id            uuid PRIMARY KEY DEFAULT gen_random_uuid(),
     title         text NOT NULL,
+    description   text,
+    -- 'standard' for BoaMe-issued rewards, 'partner' for a voucher a
+    -- sponsor funds. The app groups the catalogue by this.
+    category      text NOT NULL DEFAULT 'standard'
+                      CHECK (category IN ('standard', 'partner')),
     -- Optional partner offer, e.g. a discount voucher.
     partner_name  text,
     cost_points   integer NOT NULL CHECK (cost_points >= 0),

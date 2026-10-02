@@ -115,7 +115,9 @@ class _BinFormSheetState extends State<_BinFormSheet> {
       }
 
       final position = await Geolocator.getCurrentPosition(
-        locationSettings: const LocationSettings(accuracy: LocationAccuracy.high),
+        locationSettings: const LocationSettings(
+          accuracy: LocationAccuracy.high,
+        ),
       );
       if (!mounted) return;
       setState(() {
@@ -197,7 +199,7 @@ class _BinFormSheetState extends State<_BinFormSheet> {
           createdByName: widget.authorName,
         );
       } else {
-        await repo.update(bin);
+        await repo.update(bin, previous: existing);
       }
       if (mounted) {
         Navigator.pop(context, bin);
@@ -246,14 +248,21 @@ class _BinFormSheetState extends State<_BinFormSheet> {
                             isEditing
                                 ? 'Update what this bin collects and where it stands'
                                 : 'Four details are all a new bin needs',
-                            style: const TextStyle(fontSize: 12.5, color: kTextMuted),
+                            style: const TextStyle(
+                              fontSize: 12.5,
+                              color: kTextMuted,
+                            ),
                           ),
                         ],
                       ),
                     ),
                     IconButton(
                       onPressed: () => Navigator.pop(context),
-                      icon: const Icon(Icons.close_rounded, size: 20, color: kTextMuted),
+                      icon: const Icon(
+                        Icons.close_rounded,
+                        size: 20,
+                        color: kTextMuted,
+                      ),
                     ),
                   ],
                 ),
@@ -270,7 +279,9 @@ class _BinFormSheetState extends State<_BinFormSheet> {
                       child: StatusChip(
                         label: category,
                         color: _collects == category ? kMetricTeal : kTextMuted,
-                        icon: _collects == category ? Icons.check_rounded : null,
+                        icon: _collects == category
+                            ? Icons.check_rounded
+                            : null,
                         solid: _collects == category,
                       ),
                     );
@@ -286,7 +297,9 @@ class _BinFormSheetState extends State<_BinFormSheet> {
                     hint: 'BIN-001',
                     helper: 'Printed on the bin and shown on the map',
                   ),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Give the bin a code' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Give the bin a code'
+                      : null,
                 ),
                 const SizedBox(height: 18),
 
@@ -295,7 +308,9 @@ class _BinFormSheetState extends State<_BinFormSheet> {
                   controller: _name,
                   textCapitalization: TextCapitalization.words,
                   decoration: _decoration(hint: 'Campus Main Gate'),
-                  validator: (v) => (v == null || v.trim().isEmpty) ? 'Give the bin a name' : null,
+                  validator: (v) => (v == null || v.trim().isEmpty)
+                      ? 'Give the bin a name'
+                      : null,
                 ),
                 const SizedBox(height: 18),
 
@@ -335,7 +350,9 @@ class _BinFormSheetState extends State<_BinFormSheet> {
                 Row(
                   children: [
                     Icon(
-                      _hasPoint ? Icons.check_circle_rounded : Icons.info_rounded,
+                      _hasPoint
+                          ? Icons.check_circle_rounded
+                          : Icons.info_rounded,
                       size: 15,
                       color: _hasPoint ? kMetricTeal : kTextMuted,
                     ),
@@ -504,7 +521,11 @@ Future<(double, double)?> showBinMapPicker(
                 ),
                 IconButton(
                   onPressed: () => Navigator.pop(context),
-                  icon: const Icon(Icons.close_rounded, size: 20, color: kTextMuted),
+                  icon: const Icon(
+                    Icons.close_rounded,
+                    size: 20,
+                    color: kTextMuted,
+                  ),
                 ),
               ],
             ),
@@ -521,11 +542,15 @@ Future<(double, double)?> showBinMapPicker(
                   options: MapOptions(
                     initialCenter: initial,
                     initialZoom: 15,
-                    onTap: (_, point) => Navigator.pop(context, (point.latitude, point.longitude)),
+                    onTap: (_, point) => Navigator.pop(context, (
+                      point.latitude,
+                      point.longitude,
+                    )),
                   ),
                   children: [
                     TileLayer(
-                      urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
+                      urlTemplate:
+                          'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                       userAgentPackageName: 'com.boame.ecosystem',
                     ),
                     MarkerLayer(

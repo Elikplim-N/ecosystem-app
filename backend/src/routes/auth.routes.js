@@ -8,13 +8,17 @@ import { requireAuth, signAccessToken } from '../middleware/auth.js';
 import { loginLimiter, registerLimiter } from '../middleware/rateLimit.js';
 import {
   authenticate,
+  createPasswordResetToken,
   createSession,
   hashPassword,
+  resetPasswordWithToken,
   revokeAllSessions,
   revokeSession,
   rotateSession,
 } from '../services/authService.js';
 import { writeAudit } from '../services/auditService.js';
+import { deliverPasswordReset } from '../services/mailer.js';
+import config from '../config.js';
 
 const router = Router();
 
@@ -62,6 +66,10 @@ function publicUser(u) {
     accountState: u.account_state,
     ambassadorState: u.ambassador_state,
     ambassadorArea: u.ambassador_area ?? null,
+    // The applicant's own screen shows why a decision went the way it did, so
+    // the review note has to come back on /me rather than only on the admin
+    // queue endpoint.
+    ambassadorReviewNote: u.ambassador_review_note ?? null,
     points: u.points ?? 0,
     bottles: u.bottles ?? 0,
     weightKg: Number(u.weight_kg ?? 0),
@@ -195,6 +203,64 @@ router.get(
       [req.user.id],
     );
     res.json({ user: publicUser(full) });
+  }),
+);
+
+/**
+ * POST /api/auth/forgot-password
+ *
+ * Always responds 200, whether or not the identifier belongs to an account.
+ * Anything else turns this into a way of discovering which phone numbers and
+ * emails are registered, which is exactly what login's vague error is there to
+ * prevent.
+ *
+ * No email/SMS provider is wired up yet (see the Known gaps section of the
+ * README), so in development the reset token is logged and echoed back, which
+ * is what makes the flow testable end to end without one. In production the
+ * token is never included in the response - wire `deliverPasswordReset` to a
+ * real provider before deploying, and it will simply start sending.
+ */
+router.post(
+  '/forgot-password',
+  loginLimiter,
+  validate({ body: z.object({ identifier: z.string().trim().min(3) }) }),
+  asyncHandler(async (req, res) => {
+    const user = await one(
+      `select id, phone, email from users
+        where (phone = $1 or lower(email) = lower($1)) and account_state <> 'deleted'
+        limit 1`,
+      [req.body.identifier],
+    );
+
+    // Declared outside the branch because the development response below
+    // reads it even when there is no account.
+    let token = null;
+    if (user) {
+      token = await withTransaction((client) => createPasswordResetToken(client, user.id));
+      await deliverPasswordReset({ user, token });
+    }
+
+    res.json({
+      ok: true,
+      message: 'If that account exists, a reset link is on its way.',
+      // Development only. See the comment above.
+      ...(config.isProduction ? {} : { debugToken: token }),
+    });
+  }),
+);
+
+/**
+ * POST /api/auth/reset-password
+ *
+ * Consumes a single-use token, sets the new password, and revokes every
+ * existing session for that account in the same transaction.
+ */
+router.post(
+  '/reset-password',
+  validate({ body: z.object({ token: z.string().min(20), password }) }),
+  asyncHandler(async (req, res) => {
+    const user = await resetPasswordWithToken(req.body.token, req.body.password);
+    res.json({ ok: true, name: user.name });
   }),
 );
 

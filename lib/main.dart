@@ -1,33 +1,32 @@
 import 'package:flutter/material.dart';
-import 'package:firebase_core/firebase_core.dart';
-import 'firebase_options.dart';
 import 'screens/splash_screen.dart';
 import 'screens/ui_helpers.dart';
+import 'services/auth_service.dart';
 
-void main() async {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Firebase is being replaced by the Node backend, but the SDK still
-  // backs the current repositories. If it cannot load (offline review,
-  // blocked CDN) the app must still boot and say so, rather than
-  // leaving a blank screen behind an unhandled await.
-  Object? firebaseError;
+  // Restore the saved base URL, tokens and cached member before the first
+  // frame, so the app can go straight to the right screen instead of flashing
+  // the welcome screen and then the dashboard.
+  //
+  // A failure here is not fatal: the splash screen says so and the app still
+  // opens, because a bad server address should not mean a black screen.
+  Object? startupError;
   try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
+    await auth.restore();
   } catch (e) {
-    firebaseError = e;
+    startupError = e;
   }
 
-  runApp(EcosystemApp(firebaseError: firebaseError));
+  runApp(EcosystemApp(startupError: startupError));
 }
 
 class EcosystemApp extends StatelessWidget {
-  const EcosystemApp({super.key, this.firebaseError});
+  const EcosystemApp({super.key, this.startupError});
 
-  /// Set when Firebase failed to initialise; the splash screen shows it.
-  final Object? firebaseError;
+  /// Set when the saved session could not be read; the splash screen shows it.
+  final Object? startupError;
 
   @override
   Widget build(BuildContext context) {
@@ -80,7 +79,7 @@ class EcosystemApp extends StatelessWidget {
           ),
         ),
       ),
-      home: SplashScreen(firebaseError: firebaseError),
+      home: SplashScreen(startupError: startupError),
     );
   }
 }
