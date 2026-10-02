@@ -211,6 +211,10 @@ class ApiClient {
           if (raw is List) {
             details = raw.whereType<Map<String, dynamic>>().toList();
           }
+        } else if (error is String && error.isNotEmpty) {
+          message = error;
+        } else if (decoded['message'] is String && (decoded['message'] as String).isNotEmpty) {
+          message = decoded['message'] as String;
         }
       }
     } on Object {
