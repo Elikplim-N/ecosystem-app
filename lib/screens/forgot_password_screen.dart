@@ -181,8 +181,12 @@ class _ForgotPasswordScreenState extends State<ForgotPasswordScreen> {
         const SizedBox(height: 24),
         TextField(
           controller: phoneController,
-          keyboardType: TextInputType.phone,
-          decoration: kFieldDecoration('Phone Number', Icons.phone),
+          keyboardType: TextInputType.emailAddress,
+          decoration: kFieldDecoration(
+            'Phone number or email',
+            Icons.person_outline,
+            hintText: '024 123 4567, +233..., or email',
+          ),
         ),
         const SizedBox(height: 24),
         SizedBox(

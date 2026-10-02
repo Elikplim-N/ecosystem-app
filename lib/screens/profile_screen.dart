@@ -570,6 +570,7 @@ class ProfileScreen extends StatelessWidget {
                     keyboardType: TextInputType.phone,
                     decoration: const InputDecoration(
                       labelText: 'New Phone Number',
+                      hintText: 'e.g. 024 123 4567 or +233...',
                       border: OutlineInputBorder(),
                     ),
                   ),

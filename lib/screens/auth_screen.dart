@@ -165,9 +165,13 @@ class _AuthScreenState extends State<AuthScreen> {
       children: [
         TextField(
           controller: phoneController,
-          keyboardType: TextInputType.phone,
+          keyboardType: TextInputType.emailAddress,
           textInputAction: TextInputAction.next,
-          decoration: kFieldDecoration('Phone Number', Icons.phone_outlined),
+          decoration: kFieldDecoration(
+            'Phone number or email',
+            Icons.person_outline,
+            hintText: '024 123 4567, +233..., or email',
+          ),
         ),
         const SizedBox(height: 14),
         TextField(
@@ -222,7 +226,11 @@ class _AuthScreenState extends State<AuthScreen> {
           controller: phoneController,
           keyboardType: TextInputType.phone,
           textInputAction: TextInputAction.next,
-          decoration: kFieldDecoration('Phone Number', Icons.phone_outlined),
+          decoration: kFieldDecoration(
+            'Phone Number',
+            Icons.phone_outlined,
+            hintText: 'e.g. 024 123 4567 or +233...',
+          ),
         ),
         const SizedBox(height: 14),
         TextField(

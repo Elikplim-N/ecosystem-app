@@ -148,9 +148,16 @@ InputDecoration kFieldDecoration(
   String label,
   IconData icon, {
   Widget? suffixIcon,
+  String? hintText,
 }) {
   return InputDecoration(
     labelText: label,
+    hintText: hintText,
+    hintStyle: const TextStyle(
+      color: Color(0xFF9EABA7),
+      fontSize: 13.5,
+      fontWeight: FontWeight.normal,
+    ),
     labelStyle: const TextStyle(color: kTextMuted, fontWeight: FontWeight.w500),
     floatingLabelStyle: const TextStyle(
       color: kPrimaryColor,
